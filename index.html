@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>QR Stock POP/POS - อีเว้นท์ราชบุรี</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#171a21;
+    --panel2:#1e222b;
+    --border:#2a2f3a;
+    --text:#eef1f6;
+    --sub:#9aa3b2;
+    --accent:#3ddc97;
+    --accent2:#2bb883;
+    --danger:#ff5d6c;
+    --warn:#f5a623;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Sarabun',sans-serif;
+    background:var(--bg);
+    color:var(--text);
+    -webkit-tap-highlight-color:transparent;
+  }
+  header{
+    position:sticky; top:0; z-index:50;
+    background:linear-gradient(180deg,#12151b,#0f1115);
+    border-bottom:1px solid var(--border);
+    padding:14px 16px 10px;
+  }
+  header h1{
+    font-size:17px; margin:0 0 2px; font-weight:700;
+    display:flex; align-items:center; gap:8px;
+  }
+  header h1 .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+  header p{margin:0;font-size:12px;color:var(--sub);}
+
+  nav{
+    display:flex; gap:6px; padding:10px 16px 0;
+    background:#0f1115;
+  }
+  nav button{
+    flex:1; padding:10px 6px; border-radius:10px 10px 0 0;
+    border:1px solid var(--border); border-bottom:none;
+    background:var(--panel); color:var(--sub);
+    font-size:13px; font-weight:600; cursor:pointer;
+  }
+  nav button.active{
+    background:var(--panel2); color:var(--accent);
+  }
+
+  main{padding:14px 16px 90px; max-width:720px; margin:0 auto;}
+  .card{
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px;
+    margin-bottom:12px;
+  }
+  .row{display:flex; gap:8px;}
+  input[type=text], select{
+    width:100%; padding:11px 12px; border-radius:10px;
+    border:1px solid var(--border); background:var(--panel);
+    color:var(--text); font-size:14px; outline:none;
+  }
+  input[type=text]:focus, select:focus{border-color:var(--accent);}
+  .btn{
+    padding:11px 16px; border-radius:10px; border:none;
+    font-weight:700; font-size:14px; cursor:pointer;
+    background:var(--accent); color:#0b1410;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.secondary{background:var(--panel); color:var(--text); border:1px solid var(--border);}
+  .btn.danger{background:var(--danger); color:#210506;}
+  .btn.block{width:100%;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  .filters{display:flex; gap:8px; margin-top:8px; overflow-x:auto; padding-bottom:2px;}
+  .chip{
+    flex:0 0 auto; padding:6px 12px; border-radius:999px;
+    border:1px solid var(--border); background:var(--panel);
+    color:var(--sub); font-size:12px; white-space:nowrap; cursor:pointer;
+  }
+  .chip.active{background:var(--accent); color:#0b1410; border-color:var(--accent); font-weight:700;}
+
+  .plist{margin-top:10px; display:flex; flex-direction:column; gap:8px;}
+  .pitem{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:12px; padding:10px 12px;
+    display:flex; align-items:center; gap:10px; cursor:pointer;
+  }
+  .pitem:active{background:#20242e;}
+  .pitem .info{flex:1; min-width:0;}
+  .pitem .name{font-size:13.5px; font-weight:600; line-height:1.3;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .pitem .meta{font-size:11.5px; color:var(--sub); margin-top:3px;}
+  .pitem .code{font-size:11px; color:var(--accent); font-family:monospace;}
+  .pitem input[type=checkbox]{width:19px;height:19px;accent-color:var(--accent);flex:0 0 auto;}
+  .badge{
+    font-size:10.5px; padding:2px 7px; border-radius:6px;
+    background:#26304a; color:#8fb4ff; font-weight:600; white-space:nowrap;
+  }
+  .empty{text-align:center; color:var(--sub); padding:30px 10px; font-size:13px;}
+
+  /* QR view */
+  .qrbox{
+    background:#fff; border-radius:14px; padding:18px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .qrbox #qrcanvas-holder{display:flex; justify-content:center;}
+  .qrbox .qname{color:#111; font-weight:700; font-size:14px; text-align:center;}
+  .qrbox .qcode{color:#555; font-size:12px; font-family:monospace;}
+  .qrbox .qmeta{color:#777; font-size:11px;}
+  .actionrow{display:flex; gap:8px; margin-top:12px;}
+
+  /* Scanner */
+  #reader{border-radius:14px; overflow:hidden; border:1px solid var(--border);}
+  .scan-result{
+    border-radius:14px; padding:16px; margin-top:12px;
+    border:1px solid var(--accent); background:#0f2a20;
+  }
+  .scan-result.notfound{border-color:var(--danger); background:#2a1414;}
+  .scan-result h3{margin:0 0 6px; font-size:15px;}
+  .scan-result .r-code{font-family:monospace; color:var(--accent); font-size:12px;}
+  .history-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 0; border-bottom:1px solid var(--border); font-size:12.5px;
+  }
+  .history-item:last-child{border-bottom:none;}
+  .history-item .t{color:var(--sub); font-size:11px;}
+
+  .manual-row{display:flex; gap:8px; margin-top:10px;}
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:#20242e; border:1px solid var(--border); color:var(--text);
+    padding:10px 18px; border-radius:999px; font-size:13px; z-index:200;
+    box-shadow:0 6px 20px rgba(0,0,0,.4); opacity:0; transition:opacity .25s, transform .25s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+
+  .stat-row{display:flex; gap:8px; margin-bottom:10px;}
+  .stat{
+    flex:1; background:var(--panel); border:1px solid var(--border);
+    border-radius:12px; padding:10px; text-align:center;
+  }
+  .stat .num{font-size:18px; font-weight:800; color:var(--accent);}
+  .stat .lbl{font-size:10.5px; color:var(--sub); margin-top:2px;}
+
+  h2.section{font-size:13px; color:var(--sub); margin:4px 0 8px; text-transform:uppercase; letter-spacing:.5px;}
+
+  @media print{
+    body *{visibility:hidden;}
+    #printSheet, #printSheet *{visibility:visible;}
+    #printSheet{
+      position:absolute; left:0; top:0; width:100%;
+      display:grid; grid-template-columns:repeat(3,1fr); gap:10px;
+    }
+    .label{
+      border:1px dashed #999; border-radius:8px; padding:8px;
+      display:flex; flex-direction:column; align-items:center;
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    .label .lname{font-size:10px; text-align:center; margin-top:4px; color:#000; font-weight:600;}
+    .label .lcode{font-size:9px; color:#333; font-family:monospace;}
+  }
+  #printSheet{display:none;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="dot"></span>QR Stock POP/POS</h1>
+  <p>อีเว้นท์ราชบุรี · จัดการสินค้า/อุปกรณ์ด้วย QR Code</p>
+</header>
+
+<nav>
+  <button class="tab-btn active" data-tab="list">📋 รายการ</button>
+  <button class="tab-btn" data-tab="generate">🔳 สร้าง QR</button>
+  <button class="tab-btn" data-tab="scan">📷 สแกน</button>
+  <button class="tab-btn" data-tab="history">🕘 ประวัติ</button>
+</nav>
+
+<main>
+
+  <!-- TAB: LIST -->
+  <section id="tab-list">
+    <div class="stat-row">
+      <div class="stat"><div class="num" id="statTotal">0</div><div class="lbl">รายการทั้งหมด</div></div>
+      <div class="stat"><div class="num" id="statSelected">0</div><div class="lbl">เลือกไว้</div></div>
+      <div class="stat"><div class="num" id="statQty">0</div><div class="lbl">คงเหลือรวม</div></div>
+    </div>
+    <div class="card">
+      <input type="text" id="searchBox" placeholder="ค้นหาชื่อสินค้า / รหัส / Brand...">
+      <div class="filters" id="brandFilters"></div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn secondary" id="selectAllBtn" style="flex:1;">เลือกทั้งหมดที่กรอง</button>
+        <button class="btn secondary" id="clearSelBtn" style="flex:1;">ล้างการเลือก</button>
+      </div>
+      <button class="btn block" id="goPrintBtn" style="margin-top:8px;" disabled>🖨️ พิมพ์ QR ที่เลือก (0)</button>
+    </div>
+    <div class="plist" id="plist"></div>
+  </section>
+
+  <!-- TAB: GENERATE -->
+  <section id="tab-generate" style="display:none;">
+    <div class="card">
+      <input type="text" id="genSearch" placeholder="ค้นหาสินค้าเพื่อสร้าง QR...">
+      <div class="plist" id="genList" style="max-height:280px; overflow-y:auto;"></div>
+    </div>
+    <div class="card" id="qrCard" style="display:none;">
+      <div class="qrbox">
+        <div id="qrcanvas-holder"></div>
+        <div class="qname" id="qName"></div>
+        <div class="qcode" id="qCode"></div>
+        <div class="qmeta" id="qMeta"></div>
+      </div>
+      <div class="actionrow">
+        <button class="btn secondary" style="flex:1;" id="downloadQrBtn">⬇️ ดาวน์โหลด PNG</button>
+        <button class="btn secondary" style="flex:1;" id="printOneBtn">🖨️ พิมพ์</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB: SCAN -->
+  <section id="tab-scan" style="display:none;">
+    <div class="card">
+      <div id="reader" style="width:100%;"></div>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn block" id="startScanBtn">▶️ เปิดกล้องสแกน</button>
+        <button class="btn secondary block" id="stopScanBtn" style="display:none;">⏹️ หยุดสแกน</button>
+      </div>
+      <div class="manual-row">
+        <input type="text" id="manualCode" placeholder="หรือพิมพ์รหัสสินค้าเอง...">
+        <button class="btn secondary" id="manualBtn">ค้นหา</button>
+      </div>
+    </div>
+    <div id="scanResultWrap"></div>
+  </section>
+
+  <!-- TAB: HISTORY -->
+  <section id="tab-history" style="display:none;">
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <h2 class="section" style="margin:0;">ประวัติการสแกน</h2>
+        <button class="btn danger" id="clearHistBtn" style="padding:6px 12px; font-size:12px;">ล้างประวัติ</button>
+      </div>
+      <div id="histList"></div>
+    </div>
+  </section>
+
+</main>
+
+<div id="printSheet"></div>
+<div class="toast" id="toast"></div>
+
+<script id="products-data" type="application/json">[{"code": "230004455", "name": "ชั้นโชว์สินค้าโครงเหล็ก BLD ขนาด 60X165X50cm.", "unit": "ตัว", "brand": "BLD", "channel": "CVM", "price": "4,350.00", "qty": 28}, {"code": "230003879-35", "name": "ชั้นโชว์สุราขาวรวงข้าว 35 ขนาด 41*28*155 (กาญจนสิงขร)", "unit": "ตัว", "brand": "RK", "channel": "CVM", "price": "1,960.00", "qty": 9}, {"code": "230003879-30", "name": "ชั้นโชว์สุราขาวรวงข้าว 30 ขนาด 41*28*155 (หลักชัย )", "unit": "ตัว", "brand": "RK", "channel": "CVM", "price": "1,960.00", "qty": 13}, {"code": "230003895", "name": "ชั้นโชว์สุรา BLEND 285 ขนาด 60*40*160 cm", "unit": "ตัว", "brand": "BLD", "channel": "CVM", "price": "3,030.00", "qty": 58}, {"code": "230009164", "name": "แบ็คดรอปโครงไม้ตะแกรงทำสีดำ 2x2.4m-BLD", "unit": "ชุด", "brand": "BLD", "channel": "OT", "price": "", "qty": 4}, {"code": "230009169", "name": "บูธพร้อมผ้าคลุม+แบ็คดรอป 1.5x1.1m-BLD", "unit": "ชุด", "brand": "BLD", "channel": "OT", "price": "", "qty": 4}, {"code": "230007816", "name": "โครงเต็นท์ 3x3m", "unit": "ชุด", "brand": "ETC", "channel": "EV", "price": "", "qty": 21}, {"code": "230007597", "name": "โครงธงทะเล พร้อมขาตั้ง 90x320cm-KL7", "unit": "ชุด", "brand": "KL7", "channel": "EV", "price": "", "qty": 50}, {"code": "R7N000001", "name": "กระเป๋า ใส่อุปกรณ์ KULOV - KL7", "unit": "ใบ", "brand": "KL7", "channel": "EV", "price": "", "qty": 26}, {"code": "230004795", "name": "โครงธงทะเล+ขาตั้ง Water Tank 4.7m-100Plus", "unit": "ชุด", "brand": "100+", "channel": "EV", "price": "", "qty": 38}, {"code": "230008277", "name": "กล่องไฟไดคัท หน้าเดียว 60x60cm-KL7", "unit": "ป้าย", "brand": "KL7", "channel": "OT", "price": "", "qty": 4}, {"code": "230009162", "name": "รถเข็น 4 ล้อ 1.5m สำหรับบูธ-BLD", "unit": "คัน", "brand": "BLD", "channel": "OT", "price": "", "qty": 3}, {"code": "230014587", "name": "POP card picture 200x120cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "", "qty": 1}, {"code": "230004476", "name": "ชั้นโชว์เหล้า 3 ชั้น 34*28*153cm-RK (โรงงานหลักชัยค้าสุรา)", "unit": "ตัว", "brand": "RK", "channel": "CVM", "price": "1,756.56", "qty": 36}, {"code": "230004477", "name": "สแตนด์โชว์เหล้า2ด้าน 33.7-16.6*81cm-RK", "unit": "ตัว", "brand": "RK", "channel": "CVM", "price": "435.00", "qty": 20}, {"code": "230004565", "name": "ชั้นโชว์เบลนด์ 285 ขนาดเล็ก (ปี2558) - BLD", "unit": "ตัว", "brand": "BLD", "channel": "CVM", "price": "", "qty": 6}, {"code": "230009310", "name": "LED Dark Blue Tower 3L-KV", "unit": "ตัว", "brand": "KV", "channel": "OT", "price": "", "qty": 17}, {"code": "230016217", "name": "ถังไม้โอ๊คหงส์ทอง 24ลิตร -HT", "unit": "ใบ", "brand": "HT", "channel": "EV", "price": "2,600.00", "qty": 2}, {"code": "230016308", "name": "ขาตั้งถังไม้โอ๊ค 24ลิตร 55x100cm-HT", "unit": "ใบ", "brand": "HT", "channel": "EV", "price": "3,500.00", "qty": 2}, {"code": "230008151", "name": "เคาน์เตอร์+แผ่นติด 100 Plus Size80x125cm", "unit": "ตัว", "brand": "100+", "channel": "EV", "price": "", "qty": 2}, {"code": "230007795", "name": "ถังแช่เหล็ก ทรงกระบอก36.8x100cm-KL7", "unit": "ถัง", "brand": "KL7", "channel": "EV", "price": "", "qty": 13}, {"code": "230001079", "name": "ขาตั้งร่ม-ภายนอก-อื่นๆ", "unit": "อัน", "brand": "ETC", "channel": "EV", "price": "88.00", "qty": 299}, {"code": "230004280", "name": "ร่มสนาม 40 นิ้ว 100 Plus", "unit": "คัน", "brand": "100+", "channel": "EV", "price": "", "qty": 246}, {"code": "230007376", "name": "เสื้อแจ็กเก็ตยืนสีดำ 2018 - RM", "unit": "ตัว", "brand": "RM", "channel": "OT", "price": "800.00", "qty": 1}, {"code": "230007377", "name": "เสื้อฮู้ด สีดำ 2018 - RM", "unit": "ตัว", "brand": "RM", "channel": "OT", "price": "450.00", "qty": 10}, {"code": "230003907", "name": "ผ้าใบเต็นท์พร้อมโครงเหล็ก 3x3m-HT", "unit": "หลัง", "brand": "HT", "channel": "EV", "price": "", "qty": 9}, {"code": "230013021", "name": "Wheeled Light Box 100x210cm-HT", "unit": "ตัว", "brand": "HT", "channel": "OT", "price": "", "qty": 2}, {"code": "230013020", "name": "Light Box 2 Side Mirror 60x60cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "6,000.00", "qty": 1}, {"code": "230013019", "name": "Light Box Neon Flex 80x80cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "6,650.00", "qty": 1}, {"code": "230017301", "name": "แบ็คดรอปหงส์วิวชิวทะเลsize 45x180cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "", "qty": 10}, {"code": "230017065", "name": "ธงทะเลหงส์ทอง 90x375cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "950.00", "qty": 33}, {"code": "230013367", "name": "bucket 200L PP -HT", "unit": "ใบ", "brand": "HT", "channel": "EV", "price": "", "qty": 90}, {"code": "230007076", "name": "เคาน์เตอร์ 0.4x1.2x0.9m - RM", "unit": "ตัว", "brand": "RM", "channel": "EV", "price": "", "qty": 1}, {"code": "230007721", "name": "เคาน์เตอร์ 0.4x1.2x0.9cm - BLD", "unit": "ตัว", "brand": "BLD", "channel": "EV", "price": "16,822.43", "qty": 2}, {"code": "230008522", "name": "Counter 0.40x1.20x0.90m Kulov Max7-KL7", "unit": "ตัว", "brand": "KL7", "channel": "EV", "price": "18,000.00", "qty": 1}, {"code": "230019104", "name": "SOLID โต๊ะพับอเนกประสงค์ SS-04F", "unit": "ตัว", "brand": "Other", "channel": "EV", "price": "1,000.00", "qty": 23}, {"code": "230018057", "name": "เคาร์เตอร์พับได้หงส์ทอง 50x80x100cm", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "9,000.00", "qty": 2}, {"code": "230017101", "name": "รถเข็น (ถังแช่+ร่มสนาม) สีขาว -ZATO", "unit": "ตัว", "brand": "ZATO", "channel": "EV", "price": "9,000.00", "qty": 2}, {"code": "230014514", "name": "ป้ายไฟหงส์ทอง Neon Flex 100cmx100cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "7,500.00", "qty": 1}, {"code": "230017806", "name": "ธงทะเล+เสา+ฐาน สีครีม 85x390cm-SS", "unit": "ผืน", "brand": "SS", "channel": "OT", "price": "2,400.00", "qty": 44}, {"code": "230019129", "name": "เคาน์เตอร์ พับได้ 150x50x110cm-SS", "unit": "ชิ้น", "brand": "SS", "channel": "OT", "price": "", "qty": 4}, {"code": "230018060", "name": "แบล็คดร็อฟหงส์ทองครองสนาม 190x220cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "18,000.00", "qty": 1}, {"code": "230010625", "name": "Light box standing MOONISM 90x200cm-SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "20,000.00", "qty": 1}, {"code": "230010607", "name": "Glorifier MOONISM 31x29cm-SS", "unit": "ตัว", "brand": "SS", "channel": "OT", "price": "3,500.00", "qty": 1}, {"code": "230010634", "name": "Backdrop MOONISM 150x240cm-SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "20,000.00", "qty": 1}, {"code": "230009532", "name": "Archway โครงอลูมิเนียมผ้า 300x300cm-SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "230015566", "name": "lightbox stand circle black 90x200cm -SS", "unit": "ป้าย", "brand": "SS", "channel": "EV", "price": "", "qty": 1}, {"code": "230008505", "name": "แท่นวาง Glorifier Art Pack 40x35x35cm-SS", "unit": "ตัว", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000063", "name": "เต็นท์ SangSom MOON CAMP -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000064", "name": "Backdrop ผ้าขนาด 3x3 m. -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000065", "name": "ป้ายไฟ โลโก้ SangSom 80 cm. -SS", "unit": "ป้าย", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000066", "name": "ไฟนีออน โครงเหล็กเดินเส้นโค้ง 3 ขนาด (100,120,160 cm) -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000067", "name": "พื้นหญ้าเทียม 3x3 m. -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000068", "name": "ต้นไม้เทียม 3 ขนาด (6ต้น) -SS", "unit": "ต้น", "brand": "SS", "channel": "OT", "price": "", "qty": 6}, {"code": "230007603", "name": "กล่องไฟLEDเหล็กซิงค์อบดำด้าน0.4x1.5m - BLD", "unit": "ป้าย", "brand": "BLD", "channel": "EV", "price": "5,140.00", "qty": 4}, {"code": "230007634", "name": "ป้าย Archway 5*3m - BLD", "unit": "ชุด", "brand": "BLD", "channel": "OT", "price": "145,000.00", "qty": 1}, {"code": "230010384", "name": "Booth+Backdrop size 1.5x2.4m-BLS", "unit": "ชุด", "brand": "BLS", "channel": "EV", "price": "", "qty": 2}, {"code": "230011752", "name": "Light Sign Neon Flex Stand 1x1m-BLS", "unit": "ชุด", "brand": "BLS", "channel": "OT", "price": "", "qty": 1}, {"code": "230011753", "name": "Light sign Stand Gold 100x84cm-BLS", "unit": "ชุด", "brand": "BLS", "channel": "OT", "price": "", "qty": 1}, {"code": "230008377", "name": "ป้ายไฟ Meridian ตั้งพื้นรูปเรือใบ90x100cm-MRD", "unit": "ป้าย", "brand": "MRD", "channel": "OT", "price": "", "qty": 1}, {"code": "230008572", "name": "แบ็คดรอป โครงเหล็ก+ไม้ 230x180x50cm-MRD", "unit": "ตัว", "brand": "MRD", "channel": "EV", "price": "", "qty": 1}, {"code": "230008294", "name": "กรอบครอบเคาน์เตอร์ 200x25x250cm-MRD", "unit": "ตัว", "brand": "MRD", "channel": "EV", "price": "", "qty": 1}, {"code": "230008236", "name": "ผืนผ้า แกงการู 284x230cm-MRD", "unit": "ชุด", "brand": "MRD", "channel": "TT", "price": "", "qty": 1}, {"code": "230004888", "name": "บูธชงชิม 80*90*50-MRD", "unit": "ตัว", "brand": "MRD", "channel": "EV", "price": "", "qty": 1}, {"code": "230014382", "name": "Tent Niyomthai size 3mx3m-NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "EV", "price": "6,500.00", "qty": 1}, {"code": "R7N000094", "name": "เกมส์ขวดนิยมไทย - NYT", "unit": "ตัว", "brand": "NYT", "channel": "EV", "price": "", "qty": 1}, {"code": "230016370", "name": "เคาร์เตอร์โลโก้รูปขวด 80cmx45cmx90cm -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "7,500.00", "qty": 2}, {"code": "230011920", "name": "Counter size 65x150x110cm -NYT", "unit": "ตัว", "brand": "NYT", "channel": "EV", "price": "", "qty": 1}, {"code": "230013013", "name": "Counter Polyester ONT 100x103x40cm -PHY", "unit": "ชุด", "brand": "PHY", "channel": "OT", "price": "", "qty": 1}, {"code": "230013014", "name": "Backdrop Polyester ONT 150x225cm-PHY", "unit": "ชุด", "brand": "PHY", "channel": "OT", "price": "", "qty": 1}, {"code": "230010342", "name": "Counter Folding LED 12x11m-RKS", "unit": "ตัว", "brand": "RKS", "channel": "EV", "price": "", "qty": 1}, {"code": "230010340", "name": "Backdrop POK Bar 2x2.2m-RKS", "unit": "ตัว", "brand": "RKS", "channel": "EV", "price": "", "qty": 1}, {"code": "230010341", "name": "Display stand 1x2m-RKS", "unit": "ตัว", "brand": "RKS", "channel": "EV", "price": "", "qty": 2}, {"code": "230017265", "name": "ร่มสนาม สีขาว ขาตั้งแพเหล็ก 36in-ZATO", "unit": "ชิ้น", "brand": "ZATO", "channel": "TT", "price": "1,200.00", "qty": 1}, {"code": "230017282", "name": "รถเข็น ถังแช่ ทรงกระบอก สีขาว-ZATO", "unit": "ชิ้น", "brand": "ZATO", "channel": "TT", "price": "5,200.00", "qty": 2}, {"code": "230014331", "name": "แพยางหงส์ทอง ขนาด 5 เมตร - HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "15,000.00", "qty": 1}, {"code": "230014330", "name": "แพยางหงส์ทอง ขนาด 3 เมตร - HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "2,900.00", "qty": 3}, {"code": "230016209", "name": "ป้ายไฟหงส์ทองบอกทาง 60x220cm-HT", "unit": "ใบ", "brand": "HT", "channel": "EV", "price": "14,800.00", "qty": 1}, {"code": "230007589", "name": "ถังน้ำแข็งมีฝาสีทอง 4.5L-BLS", "unit": "ชิ้น", "brand": "BLS", "channel": "OT", "price": "27.00", "qty": 100}, {"code": "230008124", "name": "ป้าย Stage Backdrop-size 150x60cm.ทรงกลม-SS", "unit": "ป้าย", "brand": "SS", "channel": "EV", "price": "20,000.00", "qty": 1}, {"code": "230014366", "name": "Counter 40x150x100cm -HT", "unit": "ตัว", "brand": "HT", "channel": "EV", "price": "19,000.00", "qty": 1}, {"code": "230010207", "name": "Mini Display 32x17x55cm-BLD", "unit": "ตัว", "brand": "BLD", "channel": "CVM", "price": "", "qty": 19}, {"code": "230004051", "name": "ตู้ไฟล้อเลื่อน  2 หน้า 123*200 cm-BLD", "unit": "ตู้", "brand": "BLD", "channel": "OT", "price": "10,000.00", "qty": 1}, {"code": "230014973", "name": "Archway SongKran size 3.20M-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "45,000.00", "qty": 1}, {"code": "230017462", "name": "ป้ายไฟขาเกาะ 2 หน้าอะคริลิค 60x60cm-HT", "unit": "ป้าย", "brand": "HT", "channel": "OT", "price": "4,100.00", "qty": 1}, {"code": "230001897", "name": "เต็นท์-เฉพาะผ้าลายSpectrum-3x3m-SS", "unit": "หลัง", "brand": "SS", "channel": "EV", "price": "", "qty": 5}, {"code": "230002090", "name": "เคาเตอร์-โลโก้ด้านหน้า-95x100x40cm-SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "", "qty": 2}, {"code": "230002869", "name": "กล่องไฟ 1.2m-SS", "unit": "ป้าย", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "230003298", "name": "เคาน์เตอร์BLD Signature 200cmx95cm- BLS", "unit": "ตัว", "brand": "BLS", "channel": "EV", "price": "", "qty": 1}, {"code": "230003526", "name": "ที่รองแก้วยางหยอด 9x9cm รุ่น2013 - MK", "unit": "ชิ้น", "brand": "MK", "channel": "EV", "price": "8.00", "qty": 522}, {"code": "230003527", "name": "คัสเคส - MK", "unit": "ชิ้น", "brand": "MK", "channel": "EV", "price": "", "qty": 17}, {"code": "230003557", "name": "โพเดียมโชว์สินค้า - MK", "unit": "ตัว", "brand": "MK", "channel": "EV", "price": "", "qty": 17}, {"code": "230003908", "name": "ร่มสนาม 40\" สกรีน 4 สี - HT", "unit": "คัน", "brand": "HT", "channel": "TT", "price": "", "qty": 7}, {"code": "230004125", "name": "แก้วชงชิม 8 oz -SS", "unit": "ใบ", "brand": "SS", "channel": "TT", "price": "", "qty": 412}, {"code": "230004249", "name": "แก้ว พลาสติก PP ขาวขุ่น 16oz-MK", "unit": "ชิ้น", "brand": "MK", "channel": "EV", "price": "1.80", "qty": 992}, {"code": "230004360", "name": "กระเป๋าผ้าดิบใส่เหล้า 2 ขวด 35x30cm - SS", "unit": "ใบ", "brand": "SS", "channel": "OT", "price": "55.00", "qty": 55}, {"code": "230004794", "name": "ธงทะเล 145x360cm maxi dop - 100Plus", "unit": "ผืน", "brand": "100+", "channel": "EV", "price": "", "qty": 79}, {"code": "230004808", "name": "ป้ายไฟวงกลม ไดคัทไฟออกหน้า 80×80cm- BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 1}, {"code": "230005017", "name": "แบ็คดรอป 284x230cm-MRD", "unit": "ชุด", "brand": "MRD", "channel": "OT", "price": "", "qty": 1}, {"code": "230005072", "name": "แก้ว Borosilicase-MRD", "unit": "ใบ", "brand": "MRD", "channel": "TT", "price": "53.00", "qty": 4}, {"code": "230005073", "name": "BarMat PVC ยางหยอดเหลือง 60x15x1.5cm-MRD", "unit": "อัน", "brand": "MRD", "channel": "TT", "price": "", "qty": 7}, {"code": "230005090", "name": "เคาน์เตอร์ประกอบ PN183-45*120*100cm-MRD", "unit": "ตัว", "brand": "MRD", "channel": "EV", "price": "6,380.00", "qty": 2}, {"code": "230005356", "name": "ป้ายไฟอะคริลิคเลเซอร์ 40*80cm-MRD", "unit": "ป้าย", "brand": "MRD", "channel": "OT", "price": "", "qty": 5}, {"code": "230005499", "name": "เสาเหล็กสีดำ 2M ปรับระดับได้-BLD", "unit": "อัน", "brand": "BLD", "channel": "EV", "price": "", "qty": 3}, {"code": "230005525", "name": "แท่นโชว์ขวด6ใบ เหล็กสีแดง 25x20x55cm - HT", "unit": "ตัว", "brand": "HT", "channel": "TT", "price": "", "qty": 40}, {"code": "230005676", "name": "แก้ว ใส Big Glass 15x20cm-BLD", "unit": "ใบ", "brand": "BLD", "channel": "OT", "price": "", "qty": 22}, {"code": "230006032", "name": "โรลอัพ 120x200cm - BLS", "unit": "ชุด", "brand": "BLS", "channel": "EV", "price": "1,328.00", "qty": 2}, {"code": "230006141", "name": "ซองใส่ฝาโซดา-RM", "unit": "ชิ้น", "brand": "RM", "channel": "OT", "price": "", "qty": 247}, {"code": "230006358", "name": "Sky Tube-BLD", "unit": "ชุด", "brand": "BLD", "channel": "EV", "price": "1,300.00", "qty": 2}, {"code": "230006359", "name": "Sky Tube-BLS", "unit": "ชุด", "brand": "BLS", "channel": "EV", "price": "1,300.00", "qty": 2}, {"code": "230006360", "name": "Sky Tube-MRD", "unit": "ชุด", "brand": "MRD", "channel": "EV", "price": "1,300.00", "qty": 2}, {"code": "230006499", "name": "โต๊ะสูงพับได้ 50*50*110cm - BLD", "unit": "ตัว", "brand": "BLD", "channel": "EV", "price": "930.00", "qty": 9}, {"code": "230006582", "name": "เต้นท์การ์ด 31*21cm 3ตอน พับ2 มีฐาน -RM", "unit": "แผ่น", "brand": "RM", "channel": "EV", "price": "", "qty": 325}, {"code": "230006743", "name": "ป้าย Landmark 1x2m - BLD (S)", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 2}, {"code": "230006751", "name": "ร่มสนาม 8 แฉก 40in-RM", "unit": "คัน", "brand": "RM", "channel": "EV", "price": "", "qty": 2}, {"code": "230006815", "name": "กล่องไฟติดผนัง 2 หน้า 120x80x12cm NEW BLD - BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 23}, {"code": "230006816", "name": "ป้ายไฟไดคัท 1m NEW BLD - BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 3}, {"code": "230006832", "name": "ป้ายราคา 3 เหลี่ยม 30x40 cm-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "TT", "price": "", "qty": 4}, {"code": "230006833", "name": "ป้าย A Stand ขาตั้งเหล็ก 60x120cm-RKS", "unit": "ป้าย", "brand": "RKS", "channel": "EV", "price": "", "qty": 3}, {"code": "230006847", "name": "ป้ายราคา 3x17x9cm-RKS", "unit": "ชิ้น", "brand": "RKS", "channel": "EV", "price": "4.80", "qty": 370}, {"code": "230006848", "name": "สติกเกอร์ PVC 4สี A3-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "EV", "price": "", "qty": 530}, {"code": "230006849", "name": "แผ่นล้อมกอง 120x60 cm-RKS", "unit": "ชุด", "brand": "RKS", "channel": "TT", "price": "", "qty": 8}, {"code": "230006856", "name": "ป้ายไฟติดผนังทรงกลมขายื่น 1m NEW BLD - BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 2}, {"code": "230006906", "name": "เมนูสแตนด์ - BLD", "unit": "อัน", "brand": "BLD", "channel": "TT", "price": "", "qty": 140}, {"code": "230006920", "name": "แบ็คดรอป + ป้ายไฟ 200x180cm - RM", "unit": "ชุด", "brand": "RM", "channel": "EV", "price": "", "qty": 1}, {"code": "230006921", "name": "แบ็คดรอป + ป้ายไฟ 200x180cm - BLD", "unit": "ชุด", "brand": "BLD", "channel": "EV", "price": "", "qty": 2}, {"code": "230006933", "name": "ท่อผ้าสกายทูปสีทอง สกรีนโลโก้ BLS (1ด้าน)", "unit": "ผืน", "brand": "BLS", "channel": "EV", "price": "1,400.00", "qty": 10}, {"code": "230006966", "name": "เฟรม LED ขนาด 40*60ซม.New BLD - BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "1,400.00", "qty": 5}, {"code": "230007004", "name": "กระเป๋าคาดเอว -RKS", "unit": "ชิ้น", "brand": "RKS", "channel": "TT", "price": "", "qty": 2}, {"code": "230007020", "name": "แท่นโชว์2ขวดอะคริลิคซ่อนไฟ 21x35x45cm - SS", "unit": "ตัว", "brand": "SS", "channel": "OT", "price": "", "qty": 2}, {"code": "230007124", "name": "ท่อผ้าสกายทูปสีดำ สกรีนโลโก้ BLD (2ด้าน)", "unit": "ผืน", "brand": "BLD", "channel": "EV", "price": "1,400.00", "qty": 8}, {"code": "230007125", "name": "ท่อผ้าสกายทูปสีทอง สกรีนโลโก้ MRD (1ด้าน)", "unit": "ผืน", "brand": "MRD", "channel": "EV", "price": "1,400.00", "qty": 12}, {"code": "230007228", "name": "กล่องเกมส์อริลิค 32.8x43.5x2.5cm - RM", "unit": "กล่อง", "brand": "RM", "channel": "TT", "price": "1,100.00", "qty": 3}, {"code": "230007229", "name": "กล่อง จับรางวัล 30x30cm-RKS", "unit": "กล่อง", "brand": "RKS", "channel": "EV", "price": "", "qty": 11}, {"code": "230007325", "name": "แบ็คดรอป 2.4x2.4m - BLD", "unit": "ตัว", "brand": "BLD", "channel": "OT", "price": "", "qty": 1}, {"code": "230007328", "name": "ป้ายราคาตั้งกอง A3-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "TT", "price": "", "qty": 70}, {"code": "230007419", "name": "เต็นท์ 3x3m New BLD-BLD", "unit": "หลัง", "brand": "BLD", "channel": "OT", "price": "", "qty": 15}, {"code": "230007435", "name": "แบ็คดรอป + ป้ายไฟ 240x220cm - BLD", "unit": "ชุด", "brand": "BLD", "channel": "OT", "price": "17,300.00", "qty": 2}, {"code": "230007436", "name": "แบ็คดรอป + ป้ายไฟ 240x220cm - MRD", "unit": "ชุด", "brand": "MRD", "channel": "EV", "price": "14,100.00", "qty": 1}, {"code": "230007524", "name": "จุกรินเหล้าอะคริลิคตัวหงส์- HT", "unit": "ชิ้น", "brand": "HT", "channel": "TT", "price": "", "qty": 6200}, {"code": "230007596", "name": "ธงทะเล โลโก้ ไม่รวมขา 90x280cm KULOV-KL7", "unit": "ผืน", "brand": "KL7", "channel": "OT", "price": "", "qty": 49}, {"code": "230007598", "name": "แก้ว พลาสติก ฝาสีทอง 40Oz -BLS", "unit": "ชิ้น", "brand": "BLS", "channel": "OT", "price": "10.50", "qty": 650}, {"code": "230007604", "name": "กล่องไฟLEDเหล็กซิงค์อบดำด้าน0.4x1.5m - MRD", "unit": "ป้าย", "brand": "MRD", "channel": "EV", "price": "5,140.00", "qty": 2}, {"code": "230007607", "name": "เคาน์เตอร์เหล็กพับได้ 150x50x110cm - SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "", "qty": 1}, {"code": "230007635", "name": "ป้าย Stand Light Box 2.4*0.8 m - BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "35,000.00", "qty": 1}, {"code": "230007675", "name": "ลูกบอลลูนทรงกลม+คอตั้งเสา 1.5m - KL7", "unit": "ชุด", "brand": "KL7", "channel": "OT", "price": "", "qty": 8}, {"code": "230007676", "name": "ชุดเสาไฟ+ขาตั้งบอลลูน - KL7", "unit": "ชุด", "brand": "KL7", "channel": "OT", "price": "", "qty": 9}, {"code": "230007677", "name": "เครื่องเป่าบอลลูน+หม้อแปลงไฟ - KL7", "unit": "ตัว", "brand": "KL7", "channel": "OT", "price": "", "qty": 9}, {"code": "230007716", "name": "ลังไม้ใส่เคาน์เตอร์พับ 160x30x110cm - SS", "unit": "ใบ", "brand": "SS", "channel": "EV", "price": "", "qty": 1}, {"code": "230007763", "name": "ป้ายไวนิล 1.4x1.5m-BLD", "unit": "ผืน", "brand": "BLD", "channel": "EV", "price": "210.00", "qty": 24}, {"code": "230008160", "name": "ที่เปิดขวดโซดา Infinity-RM", "unit": "ชิ้น", "brand": "RM", "channel": "TT", "price": "", "qty": 240}, {"code": "230008163", "name": "เสื้อแขนกุด World Cup-KL7", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 7}, {"code": "230008207", "name": "ผ้าใบเต้นท์ 3x3m-Oishi", "unit": "หลัง", "brand": "Oishi", "channel": "EV", "price": "", "qty": 6}, {"code": "230008235", "name": "โครงพร้อมผืนผ้า แกงการู 284x230cm-MRD", "unit": "ชุด", "brand": "MRD", "channel": "TT", "price": "", "qty": 1}, {"code": "230008293", "name": "เคาน์เตอร์เหล็ก ทรงเพชร 80x110x150cm-MRD", "unit": "ตัว", "brand": "MRD", "channel": "EV", "price": "", "qty": 1}, {"code": "230008299", "name": "โรลอัพ Awards-MRD", "unit": "ชุด", "brand": "MRD", "channel": "OT", "price": "", "qty": 1}, {"code": "230008375", "name": "ป้าย Archway ไฟกระพริบ 120x300cm-KL7", "unit": "ป้าย", "brand": "KL7", "channel": "OT", "price": "39,500.00", "qty": 1}, {"code": "230008376", "name": "ป้ายไฟแลนด์มาร์ค 2 หน้า 80x180cm-KL7", "unit": "ป้าย", "brand": "KL7", "channel": "OT", "price": "18,000.00", "qty": 1}, {"code": "230008419", "name": "แผ่นพีพีบอร์ด พิมพ์2หน้า 45.5x80cm-KL7", "unit": "แผ่น", "brand": "KL7", "channel": "EV", "price": "", "qty": 88}, {"code": "230008683", "name": "ชั้นวาง Stack 34x24x130cm -KL7", "unit": "ตัว", "brand": "KL7", "channel": "OT", "price": "", "qty": 1}, {"code": "230008813", "name": "ธงทะเล Red B 90x280cm-KL7", "unit": "ผืน", "brand": "KL7", "channel": "OT", "price": "", "qty": 6}, {"code": "230008814", "name": "โครงธงทะเล Red B 90x320cm-KL7", "unit": "ชุด", "brand": "KL7", "channel": "EV", "price": "", "qty": 18}, {"code": "230008816", "name": "ผ้าใบเต็นท์ 3*3m -KV", "unit": "หลัง", "brand": "KV", "channel": "OT", "price": "", "qty": 2}, {"code": "230008865", "name": "Clear PS 2 Tiers Ice Bucket-KV", "unit": "ใบ", "brand": "KV", "channel": "OT", "price": "", "qty": 48}, {"code": "230008866", "name": "เคาน์เตอร์ไฟ พับได้ 150x90x50cm-KL7", "unit": "ตัว", "brand": "KL7", "channel": "OT", "price": "", "qty": 2}, {"code": "230008870", "name": "ป้ายไฟได้คัทBlen Fes 110x130x10cm-BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 1}, {"code": "230008945", "name": "กล่องจับฉลาก Hip 30x30cm-BLD", "unit": "กล่อง", "brand": "BLD", "channel": "OT", "price": "", "qty": 2}, {"code": "230008950", "name": "เกมส์ต่อกล่อง26x8x32.5-SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 8}, {"code": "230009064", "name": "Necktag Price 300 baht 4.5x6cm-KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 482}, {"code": "230009066", "name": "กล่องไฟ BLENE FES 86x80cm-BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 2}, {"code": "230009088", "name": "ถังแช่ทรงกระบอก Red B 36.8x100cm-KL7", "unit": "ถัง", "brand": "KL7", "channel": "OT", "price": "", "qty": 3}, {"code": "230009098", "name": "แบ็คดรอปตะแกรงเหล็ก 240x200x35cm-BLD", "unit": "ตัว", "brand": "BLD", "channel": "OT", "price": "35,000.00", "qty": 1}, {"code": "230009120", "name": "คู่มือผลิตภัณฑ์ 14.8x21cm-MRD", "unit": "ชิ้น", "brand": "MRD", "channel": "OT", "price": "175.00", "qty": 26}, {"code": "230009124", "name": "ถุงกระดาษ ดำ 25x30x13cm-MRD", "unit": "ใบ", "brand": "MRD", "channel": "TT", "price": "", "qty": 27}, {"code": "230009125", "name": "กล่องใส่แก้ว 2 ใบ 10x27x13cm-MRD", "unit": "ชิ้น", "brand": "MRD", "channel": "OT", "price": "", "qty": 79}, {"code": "230009266", "name": "Diamond Glass Ocean 300ml-MRD", "unit": "ใบ", "brand": "MRD", "channel": "OT", "price": "33.00", "qty": 1449}, {"code": "230009268", "name": "WhitewithDarkBlueTrimUndershirt F-KL7", "unit": "ตัว", "brand": "KL7", "channel": "OT", "price": "60.00", "qty": 83}, {"code": "230009361", "name": "กระบองลมแอลอีดีสีน้ำเงิน 8.7x50cm-KV", "unit": "ชิ้น", "brand": "KV", "channel": "OT", "price": "20.00", "qty": 120}, {"code": "230009421", "name": "ฐานไฟ LED วงกลม 12.7x2.7x12.7cm-KL7", "unit": "ชิ้น", "brand": "KL7", "channel": "EV", "price": "", "qty": 60}, {"code": "230009533", "name": "บล็อคต้นไม้ ไฟนีออนเฟล็กซ์ 80x80cm-SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "230009734", "name": "ป้ายไฟปั้มนูนโลโก้ 1x0.46m-RKS", "unit": "ป้าย", "brand": "RKS", "channel": "OT", "price": "", "qty": 1}, {"code": "230009980", "name": "Beach flag Lemon pop 90x280cm-KL7", "unit": "ผืน", "brand": "KL7", "channel": "OT", "price": "", "qty": 10}, {"code": "230010113", "name": "Necktag QR Price 399 baht 6x13.5cm-KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 14}, {"code": "230010174", "name": "Sticker price Vodka 1L. 29.7x42cm-KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 300}, {"code": "230010177", "name": "Sack bag big size Yellow 24x18in-RKS", "unit": "ใบ", "brand": "RKS", "channel": "TT", "price": "62.00", "qty": 80}, {"code": "230010193", "name": "หมวก LED สีทอง LET'S BLEND-BLS", "unit": "ชิ้น", "brand": "BLS", "channel": "TT", "price": "", "qty": 3}, {"code": "230010218", "name": "Game Electric wire 30x20x20cm-KV", "unit": "ชุด", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "230010219", "name": "Tank Steel Lemon pop 200L-KL7", "unit": "ตัว", "brand": "KL7", "channel": "OT", "price": "", "qty": 10}, {"code": "230010233", "name": "Counter acrylic 50x100x120cm-KV", "unit": "ตัว", "brand": "KV", "channel": "EV", "price": "9,000.00", "qty": 2}, {"code": "230010282", "name": "โต๊ะเกมส์ Balling game BLEND size 1x1.2m -BLS", "unit": "ตัว", "brand": "BLS", "channel": "OT", "price": "", "qty": 2}, {"code": "230010283", "name": "Backdrop Kangaroo Black 284x230cm-MRD", "unit": "ชุด", "brand": "MRD", "channel": "EV", "price": "", "qty": 1}, {"code": "230010299", "name": "Stand Counter 9x20x100cm-KV", "unit": "อัน", "brand": "KV", "channel": "OT", "price": "", "qty": 3}, {"code": "230010445", "name": "Sticker Song Face 9x6cm-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "OT", "price": "", "qty": 24}, {"code": "230010450", "name": "Sticker A3 Niyomthai 297x420mm-RK", "unit": "แผ่น", "brand": "RK", "channel": "TT", "price": "", "qty": 517}, {"code": "230010451", "name": "Banner Khao hom Niyomthai 1x1m-RK", "unit": "ผืน", "brand": "RK", "channel": "TT", "price": "", "qty": 280}, {"code": "230010452", "name": "Price tag Niyomthai 23x15cm-RK", "unit": "แผ่น", "brand": "RK", "channel": "TT", "price": "", "qty": 489}, {"code": "230010454", "name": "Counter Niyomthai 85x50x90cm-RK", "unit": "ตัว", "brand": "RK", "channel": "TT", "price": "", "qty": 1}, {"code": "230010491", "name": "กระเป๋าพลาสติก ทรงถัง น้ำเงิน 6.5in-KL7", "unit": "ใบ", "brand": "KL7", "channel": "OT", "price": "43.80", "qty": 280}, {"code": "230010623", "name": "Counter MOONISM 45x150x90cm-SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "15,000.00", "qty": 1}, {"code": "230010718", "name": "Polo No.1 THAILAND Size F-HT (CVA)", "unit": "ตัว", "brand": "HT", "channel": "EV", "price": "", "qty": 10}, {"code": "230010817", "name": "Sleeve PP 30x105.5cm-PYN", "unit": "แผ่น", "brand": "PYN", "channel": "TT", "price": "", "qty": 10}, {"code": "230011048", "name": "Glass Rock UG336-006 293ml-RM", "unit": "ใบ", "brand": "RM", "channel": "TT", "price": "", "qty": 22}, {"code": "230011249", "name": "Glass plastic PP Yellow 7Oz-RKS", "unit": "ใบ", "brand": "RKS", "channel": "OT", "price": "", "qty": 660}, {"code": "230011384", "name": "Light box Logo 45x100cm-MK", "unit": "ป้าย", "brand": "MK", "channel": "EV", "price": "", "qty": 1}, {"code": "230011401", "name": "หมวกบักเก็ตหงส์ทอง สีแดง-HT", "unit": "ชิ้น", "brand": "HT", "channel": "TT", "price": "125.00", "qty": 34}, {"code": "230011447", "name": "Banner gold cap 40 1x1m-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "TT", "price": "", "qty": 170}, {"code": "230011652", "name": "บัคเก็ต for one Reusable 800ml-SS", "unit": "ใบ", "brand": "SS", "channel": "EV", "price": "", "qty": 40}, {"code": "230011715", "name": "Tent Card Landscape A4 PP Board 2mm-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "TT", "price": "", "qty": 16}, {"code": "230011716", "name": "Fabric Counter 231x89x89cm-NYT", "unit": "ตัว", "brand": "NYT", "channel": "TT", "price": "", "qty": 1}, {"code": "230011743", "name": "Booth Merchandise 100x60x220cm-BLS", "unit": "ตัว", "brand": "BLS", "channel": "OT", "price": "", "qty": 2}, {"code": "230011746", "name": "Sticker Menu625 Gold Cap30 1.5x4cm-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "OT", "price": "", "qty": 233}, {"code": "230011748", "name": "Sticker Menu625 Gold Cap35 1.5x4cm-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "OT", "price": "", "qty": 110}, {"code": "230011750", "name": "Sticker Menu625 Gold Cap40 1.5x4cm-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "OT", "price": "", "qty": 66}, {"code": "230011755", "name": "Hologram Machine Wall 70x70cm-SS", "unit": "ป้าย", "brand": "SS", "channel": "OT", "price": "17,000.00", "qty": 1}, {"code": "230011758", "name": "Bucket Niyomthai PS 2.1L -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 4}, {"code": "230011759", "name": "Tray Size17.5x27.5 cm Acrylic 3 mm -NYT", "unit": "อัน", "brand": "NYT", "channel": "TT", "price": "112.00", "qty": 2}, {"code": "230011779", "name": "Glass Plastic 3 oz-NYT", "unit": "ใบ", "brand": "NYT", "channel": "OT", "price": "", "qty": 3600}, {"code": "230011798", "name": "Shelf Talker 30x3.5cm-PYN", "unit": "แผ่น", "brand": "PYN", "channel": "TT", "price": "", "qty": 72}, {"code": "230011989", "name": "Sticker LEMON POP A4 210x297mm-KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 125}, {"code": "230011990", "name": "Leaflet QR Code 10.5x14.85cm -KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 500}, {"code": "230012026", "name": "Poster Big BLEND Glass A3 -BLD", "unit": "แผ่น", "brand": "BLD", "channel": "OT", "price": "", "qty": 110}, {"code": "230012057", "name": "แก้วช็อตเขียว1P00110 Solo Shot 60ml -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 12}, {"code": "230012066", "name": "Shelf Strip 12 Bottle 3x76.5cm-BLS", "unit": "แผ่น", "brand": "BLS", "channel": "TT", "price": "", "qty": 2}, {"code": "230012067", "name": "Shelf Strip 18 Bottle 3x127.5cm-BLS", "unit": "แผ่น", "brand": "BLS", "channel": "TT", "price": "", "qty": 12}, {"code": "230012068", "name": "Shelf Strip 24 Bottle 3x169cm-BLS", "unit": "แผ่น", "brand": "BLS", "channel": "TT", "price": "", "qty": 97}, {"code": "230012069", "name": "4 Bottle Stand Kulov Acrylic 38x5cm-KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 17}, {"code": "230012093", "name": "Neck Tag Khao Horm 9.5x5.5cm-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "TT", "price": "", "qty": 500}, {"code": "230012228", "name": "Tent Card 2 Size PP Board 3mm A4 -NYT", "unit": "แผ่น", "brand": "NYT", "channel": "TT", "price": "", "qty": 30}, {"code": "230012241", "name": "Shot Glass LG440601 1.3oz -NYT", "unit": "ใบ", "brand": "NYT", "channel": "OT", "price": "12.90", "qty": 54}, {"code": "230012242", "name": "Sticker Menu 700ml Size 1.5x4cm-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "OT", "price": "", "qty": 256}, {"code": "230012243", "name": "Sticker Menu 330ml Size 1.5x4cm-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "OT", "price": "", "qty": 256}, {"code": "230012268", "name": "Price Sticker Digital 4.2x2.4cm-BLD", "unit": "แผ่น", "brand": "BLD", "channel": "TT", "price": "", "qty": 153}, {"code": "230012299", "name": "กระบอกน้ำเขียวใสฝาทอง PP PS 1.5L -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 63}, {"code": "230012348", "name": "Sticker ร็อครับร้อน 29.7x42cm-RM", "unit": "แผ่น", "brand": "RM", "channel": "TT", "price": "", "qty": 32}, {"code": "230012349", "name": "Standee ร็อครับร้อน 80x120cm -RM", "unit": "แผ่น", "brand": "RM", "channel": "TT", "price": "", "qty": 14}, {"code": "230012350", "name": "Lucky Draw Box Black 20x20x30cm -RM", "unit": "กล่อง", "brand": "RM", "channel": "TT", "price": "", "qty": 14}, {"code": "230012376", "name": "Standee Price ชงยิ่งเข้าเล่ายิ่งลื่น 85c -RM", "unit": "แผ่น", "brand": "RM", "channel": "TT", "price": "", "qty": 1}, {"code": "230012450", "name": "Shot Glass \"N\" LG440601 1.3Oz -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 48}, {"code": "230012458", "name": "Sticker QR Code A4 210mmx297mm-KV", "unit": "แผ่น", "brand": "KV", "channel": "TT", "price": "", "qty": 74}, {"code": "230012514", "name": "Backdrop Blend 285 X Benzilla 70x220cm +ขาตั้ง+สปอร์ตไลท์ -BLD", "unit": "ชุด", "brand": "BLD", "channel": "OT", "price": "", "qty": 4}, {"code": "230012555", "name": "Backdrop Niyomthai 150x220x40cm-NYT", "unit": "ตัว", "brand": "NYT", "channel": "EV", "price": "", "qty": 1}, {"code": "230012767", "name": "สติกเกอร์ติดเมนู 350มล 7x1.2cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "3.00", "qty": 50}, {"code": "230012768", "name": "สติกเกอร์ติดเมนู 700มล 7x1.2cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "3.00", "qty": 50}, {"code": "230012865", "name": "Board Ruang Khao Silver A4 21x29.7cm-RKS", "unit": "แผ่น", "brand": "RKS", "channel": "OT", "price": "", "qty": 3}, {"code": "230013033", "name": "Glass Fine Drink 1B01913 13Oz -HT", "unit": "ใบ", "brand": "HT", "channel": "TT", "price": "23.85", "qty": 9}, {"code": "230013065", "name": "Tray Shot New Acrylic-KV", "unit": "อัน", "brand": "KV", "channel": "OT", "price": "", "qty": 69}, {"code": "230013066", "name": "Sticker LED 8x8cm-KV", "unit": "แผ่น", "brand": "KV", "channel": "OT", "price": "", "qty": 70}, {"code": "230013091", "name": "Poster Board A3 -RKS", "unit": "แผ่น", "brand": "RKS", "channel": "OT", "price": "", "qty": 30}, {"code": "230013154", "name": "กล่องแก้วมาอย่างหงส์ 1B01913 -HT", "unit": "ชิ้น", "brand": "HT", "channel": "TT", "price": "", "qty": 3}, {"code": "230013177", "name": "Pourer Stainless 10.5x3cm- PHY", "unit": "ชิ้น", "brand": "PHY", "channel": "OT", "price": "", "qty": 91}, {"code": "230013181", "name": "Sticker Flirt with her 10x10cm-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "OT", "price": "2.18", "qty": 30}, {"code": "230013184", "name": "Poster Con-Promotion TLB (landscape) A3-BLS", "unit": "แผ่น", "brand": "BLS", "channel": "OT", "price": "", "qty": 44}, {"code": "230013185", "name": "Poster Con-Promotion TMD(vertical)A3-BLS", "unit": "แผ่น", "brand": "BLS", "channel": "OT", "price": "", "qty": 50}, {"code": "230013252", "name": "Keychain Mick 13cmx3cm -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "OT", "price": "11.00", "qty": 8}, {"code": "230013297", "name": "ผ้ากันเปื้อนเต็มตัว สีเขียว พม่า -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "150.00", "qty": 2}, {"code": "230013343", "name": "กระเป๋าเป้สีเขียวหูรูดsize 35x40cm-NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 18}, {"code": "230013414", "name": "เหยือก พลาสติก ใส 2.74L -SS", "unit": "ชิ้น", "brand": "SS", "channel": "OT", "price": "95.00", "qty": 21}, {"code": "230013415", "name": "Stand Steel Gold Light 16x19x23cm -SS", "unit": "ชิ้น", "brand": "SS", "channel": "OT", "price": "148.00", "qty": 21}, {"code": "230013416", "name": "Bucket Set -NYT", "unit": "ชุด", "brand": "NYT", "channel": "TT", "price": "127.10", "qty": 14}, {"code": "230013453", "name": "LightBox Round MotionLight Black 60x60cm-BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 1}, {"code": "230013457", "name": "Light Box Neon Flex Logo 150x123cm-BLS", "unit": "ป้าย", "brand": "BLS", "channel": "OT", "price": "", "qty": 1}, {"code": "230013458", "name": "Light Box Die Cut Logo 150x95cm-BLD", "unit": "ป้าย", "brand": "BLD", "channel": "OT", "price": "", "qty": 2}, {"code": "230013482", "name": "Dispenser Hong thong 12x32cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "", "qty": 3}, {"code": "230013528", "name": "Stand steel gold light 16x19x23cm -HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "195.00", "qty": 116}, {"code": "230013530", "name": "กระติกน้ำ รวงข้าว 5L -RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "117.00", "qty": 18}, {"code": "230013537", "name": "Pitcher Plastic clear Hongthong 2.74L-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "115.00", "qty": 116}, {"code": "230013548", "name": "แก้วเย็นนานหงส์ทองฝาสีม่วง 26oz Ver.2 -HT", "unit": "ใบ", "brand": "HT", "channel": "OT", "price": "37.50", "qty": 232}, {"code": "230013631", "name": "Poster raincoat A3 -BLS", "unit": "แผ่น", "brand": "BLS", "channel": "OT", "price": "", "qty": 26}, {"code": "230013648", "name": "Poster อยากให้เธอมีกระเป๋า A3 -SS", "unit": "แผ่น", "brand": "SS", "channel": "OT", "price": "", "qty": 184}, {"code": "230013665", "name": "Counter wooden frame blue 150x50x110cm - PHY", "unit": "ตัว", "brand": "PHY", "channel": "OT", "price": "", "qty": 1}, {"code": "230013666", "name": "Backdrop wooden frameBlue60x40x240cm-PHY", "unit": "ชุด", "brand": "PHY", "channel": "OT", "price": "", "qty": 1}, {"code": "230013673", "name": "Board A4 NIYOMTHAI -NYT จุดสีแดง", "unit": "แผ่น", "brand": "NYT", "channel": "OT", "price": "54.40", "qty": 8}, {"code": "230013698", "name": "กล่องใส่แก้วเย็นนานหงส์ทอง26oz Ver.2 -HT", "unit": "กล่อง", "brand": "HT", "channel": "OT", "price": "12.00", "qty": 232}, {"code": "230013710", "name": "Glass bottle MIX IT size 350ml-KV", "unit": "ใบ", "brand": "KV", "channel": "OT", "price": "", "qty": 11}, {"code": "230013810", "name": "Ice Cubes Plastic LEDyellow2.7x2.7cm-BLD", "unit": "ชิ้น", "brand": "BLD", "channel": "OT", "price": "", "qty": 508}, {"code": "230013898", "name": "Box bar wood 1.04x1.10m-PHY", "unit": "ชุด", "brand": "PHY", "channel": "EV", "price": "", "qty": 1}, {"code": "230013926", "name": "Poster price BLEND TANK A3 -BLD", "unit": "แผ่น", "brand": "BLD", "channel": "OT", "price": "", "qty": 62}, {"code": "230013945", "name": "Poster PriceBox with light fromSangsomA3 -ss", "unit": "แผ่น", "brand": "SS", "channel": "OT", "price": "", "qty": 195}, {"code": "230014088", "name": "Poster T-shirt RE-BLEND A3 -BLS", "unit": "แผ่น", "brand": "BLS", "channel": "OT", "price": "", "qty": 65}, {"code": "230014329", "name": "HONGTHONG FLOAT 1M -HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "690.00", "qty": 25}, {"code": "230014344", "name": "ถังน้ำแข็ง KULOV 2L -KV", "unit": "ชิ้น", "brand": "KV", "channel": "EV", "price": "", "qty": 400}, {"code": "230014347", "name": "Light box HONGTHONG 80x80cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "5,500.00", "qty": 3}, {"code": "230014373", "name": "กระเป๋าคาดเอว สีรุ้ง NEW-RKS", "unit": "ชิ้น", "brand": "RKS", "channel": "TT", "price": "", "qty": 3}, {"code": "230014383", "name": "Board A4 Ruang khao -RK", "unit": "ชิ้น", "brand": "RK", "channel": "OT", "price": "50.50", "qty": 15}, {"code": "230014449", "name": "Game box wooden lighting 45x45cm-PHY", "unit": "ชุด", "brand": "PHY", "channel": "OT", "price": "", "qty": 2}, {"code": "230014467", "name": "เสื้อคอกลม 5ส่วน นิยมไม่หยุด Size F -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 3}, {"code": "230014477", "name": "หมวกแก๊ปนิยมไทย -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "95.00", "qty": 3}, {"code": "230014504", "name": "Flag cloth KULOV NEW 90x280 cm-KV", "unit": "ผืน", "brand": "KV", "channel": "EV", "price": "", "qty": 6}, {"code": "230014551", "name": "Card Craft Story 9cmx7cm -PHY", "unit": "ชิ้น", "brand": "PHY", "channel": "OT", "price": "", "qty": 765}, {"code": "230014552", "name": "Sticker pvc circle 4W 1.6cmx1.6cm-PHY", "unit": "ชิ้น", "brand": "PHY", "channel": "OT", "price": "", "qty": 765}, {"code": "230014569", "name": "Box Set 23x30.3x30.8cm -HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "76.00", "qty": 7}, {"code": "230014590", "name": "Glass PET 22oz red -HT", "unit": "ชิ้น", "brand": "HT", "channel": "TT", "price": "2.43", "qty": 1680}, {"code": "230014611", "name": "Light box Stand 80cmx80cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "", "qty": 1}, {"code": "230014614", "name": "Glass MATTER FRESH DOUBLE ROCK 350ml-PHY", "unit": "ใบ", "brand": "PHY", "channel": "EV", "price": "", "qty": 12}, {"code": "230014696", "name": "Poster Set Short Kulov A3 -KV", "unit": "ชิ้น", "brand": "KV", "channel": "OT", "price": "", "qty": 94}, {"code": "230014769", "name": "กระบอกน้ำสีเขียวใส PET 1.2L NEW -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 3}, {"code": "230014844", "name": "Shot glass Niyomthai UG412 Songkran -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "4.42", "qty": 7178}, {"code": "230014845", "name": "Waterproof bag -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "EV", "price": "14.50", "qty": 52}, {"code": "230014848", "name": "Light box Neon Flex 15cmx100cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "4,000.00", "qty": 2}, {"code": "230014978", "name": "swimming pool 360 cm -HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "4,000.00", "qty": 1}, {"code": "230015061", "name": "แก้วพลาสติก Holograms+ฝา 700ml - NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "OT", "price": "10.00", "qty": 151}, {"code": "230015083", "name": "แก้วน้ำ 2 ชั้น Kulov PS 450ml -KV", "unit": "ใบ", "brand": "KV", "channel": "EV", "price": "35.00", "qty": 31}, {"code": "230015121", "name": "ถุงซิปล็อครักษ์โลกหงส์ทอง", "unit": "ชิ้น", "brand": "HT", "channel": "TT", "price": "", "qty": 336}, {"code": "230015189", "name": "สติกเกอร์LEDไม่มีโลโก้หงส์ทอง 4x4cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "17.20", "qty": 80}, {"code": "230015573", "name": "สติกเกอร์ PVC Kulov My Mix 15x9cm-KV", "unit": "ชิ้น", "brand": "KV", "channel": "OT", "price": "13.00", "qty": 129}, {"code": "230015585", "name": "Sticker tube flag 8 countries7.2x22cm-KV แบบที่ 1-8", "unit": "ชิ้น", "brand": "KV", "channel": "OT", "price": "", "qty": 140}, {"code": "230015754", "name": "ทาวเวอร์ Kulov สองช่อง ขนาด 2.5L -KV", "unit": "ตัว", "brand": "KV", "channel": "OT", "price": "2,200.00", "qty": 4}, {"code": "230016236", "name": "แก้วพลาสติกPS รวงข้าวซิลเวอร์ 1L -RKS", "unit": "ชิ้น", "brand": "RKS", "channel": "OT", "price": "36.00", "qty": 4}, {"code": "230016765", "name": "ผ้าใบเต้นท์หงส์ทอง ขนาด 3x3m-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "5,500.00", "qty": 6}, {"code": "230016884", "name": "แก้วช็อตนิยมทุกเทศกาล 2025 UG412 -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "EV", "price": "4.55", "qty": 112}, {"code": "230016969", "name": "คู่มือขาย Size 23x12cm -ZATO", "unit": "ชิ้น", "brand": "ZATO", "channel": "TT", "price": "", "qty": 6}, {"code": "230017073", "name": "สเตชั่นพับได้หงส์ทอง 50x50x107cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "1,200.00", "qty": 75}, {"code": "230017093", "name": "เสื้อกล้ามหงส์ทอง สีแดง Size XL-HT", "unit": "ตัว", "brand": "HT", "channel": "OT", "price": "", "qty": 4}, {"code": "230017107", "name": "กล่องแก้วมาอย่างหงส์ 1B01913 15x7cm -HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "6.95", "qty": 296}, {"code": "230017119", "name": "ป้ายไฟหงส์ทอง ตู้ทึบ 1.2x1.2m-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "6,800.00", "qty": 1}, {"code": "230017226", "name": "แลนด์มาร์คหงส์ทอง Size 1x4m-HT", "unit": "ตัว", "brand": "HT", "channel": "EV", "price": "", "qty": 1}, {"code": "230017241", "name": "กระเป๋า พลาสติก PVC ใส 40x9x30cm-CP", "unit": "ชิ้น", "brand": "ZATO", "channel": "OT", "price": "37.00", "qty": 56}, {"code": "230017275", "name": "ป้ายไฟหงส์ทอง ตู้ทึบ 1x1m-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "6,300.00", "qty": 1}, {"code": "230017295", "name": "ที่แขวนถังน้ำ 200 ลิตร-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "100.00", "qty": 117}, {"code": "230017300", "name": "สแตนดี้หงส์วิวชิวทะเล 80x180cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "", "qty": 2}, {"code": "230017431", "name": "โปสเตอร์ราคา HAI A3-HAI", "unit": "ชิ้น", "brand": "HAI", "channel": "OT", "price": "165.00", "qty": 150}, {"code": "230017493", "name": "ป้ายไฟ ขาเกาะ 2 หน้า สีทอง 60x60cm-BLS", "unit": "ป้าย", "brand": "BLS", "channel": "OT", "price": "3,650.00", "qty": 5}, {"code": "230017494", "name": "แท่นโชว์ อะคริลิค สีขาว 17x6.5cm-PHY", "unit": "ชิ้น", "brand": "PHY", "channel": "OT", "price": "2,350.00", "qty": 5}, {"code": "230017536", "name": "แผงฉลาก 1หน้า A3-RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "", "qty": 121}, {"code": "230017571", "name": "ถาดเสิร์ฟ ใส่เครื่องปรุง-HAI", "unit": "ชิ้น", "brand": "HAI", "channel": "OT", "price": "", "qty": 3}, {"code": "230017674", "name": "กระเป๋า พลาสติกใส 4 กระป๋อง 9x15x30cm-CP", "unit": "ชิ้น", "brand": "ZATO", "channel": "OT", "price": "9.75", "qty": 60}, {"code": "230017709", "name": "GlassBox Diamond+InsertOrg 8.5x10cm-MRD", "unit": "ชิ้น", "brand": "MRD", "channel": "OT", "price": "", "qty": 178}, {"code": "230017743", "name": "แก้วใส ทรงกระป๋อง ZATO 470ml-CP", "unit": "ชิ้น", "brand": "ZATO", "channel": "TT", "price": "17.00", "qty": 68}, {"code": "230017794", "name": "กล่องใส่แก้ว ซาโต้ สีขาว 7x7x17cm-CP", "unit": "ชิ้น", "brand": "ZATO", "channel": "TT", "price": "3.20", "qty": 68}, {"code": "230017849", "name": "เสื้อโปโลรวงข้าว สีขาว Size M-RK", "unit": "ตัว", "brand": "RK", "channel": "TT", "price": "158.00", "qty": 15}, {"code": "230017850", "name": "เสื้อโปโลรวงข้าว สีขาว Size XL-RK", "unit": "ตัว", "brand": "RK", "channel": "TT", "price": "158.00", "qty": 30}, {"code": "230017852", "name": "เสื้อโปโลรวงข้าว สีขาว Size 3XL-RK", "unit": "ตัว", "brand": "RK", "channel": "TT", "price": "158.00", "qty": 3}, {"code": "230017972", "name": "ธงล้ำหน้า ฟุตบอล-HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "139.00", "qty": 1}, {"code": "230018097", "name": "ชุดเสิร์ฟหงส์ทองHappy Birthday 6L PS -HT", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "390.00", "qty": 6}, {"code": "230018160", "name": "Pumpkin Plastic LED Orange 0.5W", "unit": "ชิ้น", "brand": "HT", "channel": "EV", "price": "43.80", "qty": 36}, {"code": "230018299", "name": "แบ็คดรอปหงส์ชิววิวภูเขา 60x230cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "", "qty": 2}, {"code": "230018375", "name": "แผงฉลาก Lotto 2หน้า A3-RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "", "qty": 10}, {"code": "230018419", "name": "โปสเตอร์ราคา ไอซ์ เบิร์ก A3-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "8.00", "qty": 156}, {"code": "230018527", "name": "แลนด์มาร์ค รูปขวด น้ำเงิน 90x180cm-PHY", "unit": "ชิ้น", "brand": "PHY", "channel": "OT", "price": "", "qty": 1}, {"code": "230018642", "name": "เต็นท์การ์ดราคา รวงข้าว A3 ปี26-RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "", "qty": 20}, {"code": "230018664", "name": "สติกเกอร์พญานาคฉลากฟ้า FT 297x420mm-RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "", "qty": 1500}, {"code": "230018693", "name": "โครงเหล็ก ธงทะเล สีดำ 50x200cm-ZT", "unit": "ชิ้น", "brand": "ZATO", "channel": "OT", "price": "350.00", "qty": 4}, {"code": "230018694", "name": "ผ้าธงญี่ปุ่น ZATO สีขาว 50x150cm-ZT", "unit": "ชิ้น", "brand": "ZATO", "channel": "OT", "price": "225.00", "qty": 4}, {"code": "230018708", "name": "แก้วช็อต LG404302 60ml-RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "", "qty": 3816}, {"code": "230018756", "name": "สติกเกอร์เมนู หงส์ทอง 200ml. 4x4cm-HT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "", "qty": 1140}, {"code": "230018757", "name": "สติกเกอร์เมนู แสงโสม 200ml 4x4cm-SS", "unit": "ชิ้น", "brand": "SS", "channel": "OT", "price": "", "qty": 1590}, {"code": "230018758", "name": "สติกเกอร์เมนูเมอริเดียน200ml 4x4cm-MRD", "unit": "ชิ้น", "brand": "MRD", "channel": "OT", "price": "", "qty": 580}, {"code": "230018759", "name": "สติกเกอร์เมนู แม่โขง 200ml 4x4cm-MK", "unit": "ชิ้น", "brand": "MK", "channel": "OT", "price": "", "qty": 400}, {"code": "230018851", "name": "ธงทะเลรวงข้าว+เสา+ฐาน 75x410cm-RK", "unit": "ชิ้น", "brand": "RK", "channel": "EV", "price": "1,800.00", "qty": 8}, {"code": "230019105", "name": "บูธชงชิมรวงข้าว ป๊อกเทล 80x180cm-RK", "unit": "ชิ้น", "brand": "RK", "channel": "TT", "price": "2,650.00", "qty": 7}, {"code": "230019115", "name": "สเตชั่น เหล็ก สีครีม 50x50x107cm-SS", "unit": "ชิ้น", "brand": "SS", "channel": "OT", "price": "", "qty": 110}, {"code": "230019173", "name": "ป้ายไฟไดคัท โลโก้พระจันทร์ 1.2x2m-SS", "unit": "ชิ้น", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "230019207", "name": "ธงทะเล โครง+ฐาน สีขาว 75x400cm-ZT", "unit": "ชิ้น", "brand": "ZATO", "channel": "EV", "price": "1,800.00", "qty": 8}, {"code": "230019250", "name": "ธงทะเล โครง+ฐาน สีน้ำเงิน 85x390cm-KV", "unit": "ชิ้น", "brand": "KV", "channel": "OT", "price": "2,875.00", "qty": 2}, {"code": "230019334", "name": "ป้ายคล้องคอ Smooth Match 7x15cm-MRD", "unit": "ชิ้น", "brand": "MRD", "channel": "OT", "price": "36.00", "qty": 10}, {"code": "230019521", "name": "กล่องแก้วมาอย่างหงส์ ฟุตบอล 15x7cmHT", "unit": "ชิ้น", "brand": "HT", "channel": "OT", "price": "7.30", "qty": 64}, {"code": "R7N000003", "name": "กระเป๋า ใส่อุปกรณ์ Red Blast - KL7", "unit": "ใบ", "brand": "KL7", "channel": "EV", "price": "", "qty": 3}, {"code": "R7N000004", "name": "เคาน์เตอร์ 0.4x1.2x0.9cm - Kulov red B - KL7", "unit": "ตัว", "brand": "KL7", "channel": "EV", "price": "16,822.43", "qty": 1}, {"code": "R7N000005", "name": "ลูกบอลลูนทรงกลม+คอตั้งเสา 2m. - BLD", "unit": "ชุด", "brand": "BLD", "channel": "EV", "price": "", "qty": 3}, {"code": "R7N000006", "name": "ชุดเสาไฟ+ขาตั้งบอลลูน - BLD", "unit": "ชุด", "brand": "BLD", "channel": "EV", "price": "", "qty": 3}, {"code": "R7N000007", "name": "เครื่องเป่าบอลลูน+หม้อแปลงไฟ - BLD", "unit": "ชุด", "brand": "BLD", "channel": "EV", "price": "", "qty": 3}, {"code": "R7N000008", "name": "ป้ายไวนิล 1.4x1.5m-BLS", "unit": "ผืน", "brand": "BLS", "channel": "EV", "price": "", "qty": 25}, {"code": "R7N000009", "name": "Backdrop MRD ขนาด 2.40x2.20m.( Inkjet )-MRD", "unit": "ชุด", "brand": "MRD", "channel": "EV", "price": "5,600.00", "qty": 1}, {"code": "R7N000010", "name": "ไดคัทอะคริลิคเดินไฟเหล็ก 3 ชิ้น", "unit": "ชุด", "brand": "KL7", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000011", "name": "Backdrop Let's Blend Together-BLS", "unit": "ชุด", "brand": "BLS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000012", "name": "Boot Kulov Lemon PoP-KL7", "unit": "ชุด", "brand": "KL7", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000013", "name": "ScoreBoard Lightbox-KV", "unit": "ชุด", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000014", "name": "โต๊ะ Flip Kup-KV", "unit": "ชุด", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000015", "name": "Board Top 5 Lightbox-KV", "unit": "ชุด", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000060", "name": "แก้วช็อตทีมนิยมไทย ขนาด 2.1 ออนซ์ -NYT", "unit": "ชิ้น", "brand": "NYT", "channel": "TT", "price": "", "qty": 17}, {"code": "R7N000070", "name": "โปสเตอร์ A3-NYT", "unit": "แผ่น", "brand": "NYT", "channel": "OT", "price": "", "qty": 32}, {"code": "R7N000071", "name": "โปรเตอร์ TillyBirds - BLS", "unit": "แผ่น", "brand": "BLS", "channel": "OT", "price": "", "qty": 7}, {"code": "R7N000072", "name": "โปรเตอร์ Three Man Down - BLS", "unit": "แผ่น", "brand": "BLS", "channel": "OT", "price": "", "qty": 20}, {"code": "R7N000079", "name": "ธงทะเลนิยมไทย พร้อมโครงและขาตั้ง  - NYT", "unit": "ชุด", "brand": "NYT", "channel": "EV", "price": "", "qty": 2}, {"code": "R7N000080", "name": "เคาร์เตอร์นิยมไทย  - NYT", "unit": "ตัว", "brand": "NYT", "channel": "EV", "price": "", "qty": 1}, {"code": "R7N000081", "name": "ตู้สติกเกอร์ Sangsom -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000082", "name": "Shelf Display Sangsom -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 5}, {"code": "R7N000083", "name": "Product Display Sangsom 2.5x2.5 m. -SS", "unit": "ชุด", "brand": "SS", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000086", "name": "จอทัชกรีน + ขาตั้ง", "unit": "ตัว", "brand": "KV", "channel": "EV", "price": "", "qty": 1}, {"code": "R7N000088", "name": "Backdrop  - KV", "unit": "ชุด", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000089", "name": "Counter  - KV", "unit": "ชุด", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000090", "name": "ป้ายไฟ LED ตัวอักษรวิ่งได้ 16 x 32 cm. - KV", "unit": "ป้าย", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000091", "name": "LED FLEX KULOV VALENTINE - KV", "unit": "ป้าย", "brand": "KV", "channel": "OT", "price": "", "qty": 1}, {"code": "R7N000093", "name": "แท่นวาง Box Game Phraya -PHY", "unit": "ตัว", "brand": "PHY", "channel": "OT", "price": "", "qty": 2}, {"code": "R7N000097", "name": "Archway วงแหวน - SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "", "qty": 1}, {"code": "R7N000098", "name": "Infinty mirror - SS", "unit": "ตัว", "brand": "SS", "channel": "EV", "price": "", "qty": 1}, {"code": "230019569", "name": "คูปองสีทอง รวงข้าว 6x6cm-RK", "unit": "ชุด", "brand": "RK", "channel": "TT", "price": "", "qty": 0}]</script>
+
+<script>
+(function(){
+  const PRODUCTS = JSON.parse(document.getElementById('products-data').textContent);
+  const byCode = {};
+  PRODUCTS.forEach(p => { byCode[p.code] = p; });
+
+  let selected = new Set();
+  let currentFilter = '';
+  let currentBrand = 'all';
+
+  const toast = document.getElementById('toast');
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 1800);
+  }
+
+  // ---------- TABS ----------
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const sections = {
+    list: document.getElementById('tab-list'),
+    generate: document.getElementById('tab-generate'),
+    scan: document.getElementById('tab-scan'),
+    history: document.getElementById('tab-history'),
+  };
+  tabBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      tabBtns.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      Object.entries(sections).forEach(([k,el])=> el.style.display = (k===btn.dataset.tab? '' : 'none'));
+      if(btn.dataset.tab === 'history') renderHistory();
+      if(btn.dataset.tab !== 'scan') stopScanner();
+    });
+  });
+
+  // ---------- BRAND FILTERS ----------
+  const brands = Array.from(new Set(PRODUCTS.map(p=>p.brand).filter(Boolean))).sort();
+  const brandFilterEl = document.getElementById('brandFilters');
+  function renderBrandChips(){
+    let html = `<div class="chip active" data-b="all">ทั้งหมด</div>`;
+    brands.forEach(b=> html += `<div class="chip" data-b="${b}">${b}</div>`);
+    brandFilterEl.innerHTML = html;
+    brandFilterEl.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        brandFilterEl.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+        chip.classList.add('active');
+        currentBrand = chip.dataset.b;
+        renderList();
+      });
+    });
+  }
+  renderBrandChips();
+
+  function fmtPrice(p){ return p ? p+' บาท' : '-'; }
+
+  function filteredProducts(query){
+    const q = (query||'').trim().toLowerCase();
+    return PRODUCTS.filter(p=>{
+      if(currentBrand!=='all' && p.brand !== currentBrand) return false;
+      if(!q) return true;
+      return p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || (p.brand||'').toLowerCase().includes(q);
+    });
+  }
+
+  // ---------- LIST TAB ----------
+  const plist = document.getElementById('plist');
+  const searchBox = document.getElementById('searchBox');
+  const statTotal = document.getElementById('statTotal');
+  const statSelected = document.getElementById('statSelected');
+  const statQty = document.getElementById('statQty');
+  const goPrintBtn = document.getElementById('goPrintBtn');
+
+  function renderList(){
+    const items = filteredProducts(searchBox.value);
+    statTotal.textContent = items.length;
+    statQty.textContent = items.reduce((s,p)=>s+(Number(p.qty)||0),0);
+    statSelected.textContent = selected.size;
+    goPrintBtn.textContent = `🖨️ พิมพ์ QR ที่เลือก (${selected.size})`;
+    goPrintBtn.disabled = selected.size === 0;
+
+    if(items.length === 0){
+      plist.innerHTML = `<div class="empty">ไม่พบสินค้าที่ตรงกับคำค้นหา</div>`;
+      return;
+    }
+    plist.innerHTML = items.map(p=>`
+      <div class="pitem" data-code="${p.code}">
+        <input type="checkbox" ${selected.has(p.code)?'checked':''} data-check="${p.code}">
+        <div class="info">
+          <div class="name">${escapeHtml(p.name)}</div>
+          <div class="meta"><span class="code">${p.code}</span> · ${p.unit||''} · คงเหลือ ${p.qty}</div>
+        </div>
+        <span class="badge">${p.brand||'-'}</span>
+      </div>
+    `).join('');
+
+    plist.querySelectorAll('[data-check]').forEach(cb=>{
+      cb.addEventListener('click', e=>{
+        e.stopPropagation();
+        const code = cb.dataset.check;
+        if(cb.checked) selected.add(code); else selected.delete(code);
+        renderList();
+      });
+    });
+    plist.querySelectorAll('.pitem').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const code = el.dataset.code;
+        openGenerateFor(code);
+        document.querySelector('.tab-btn[data-tab="generate"]').click();
+      });
+    });
+  }
+
+  function escapeHtml(s){
+    return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  searchBox.addEventListener('input', renderList);
+
+  document.getElementById('selectAllBtn').addEventListener('click', ()=>{
+    filteredProducts(searchBox.value).forEach(p=>selected.add(p.code));
+    renderList();
+  });
+  document.getElementById('clearSelBtn').addEventListener('click', ()=>{
+    selected.clear();
+    renderList();
+  });
+
+  goPrintBtn.addEventListener('click', ()=>{
+    printSelected(Array.from(selected).map(c=>byCode[c]).filter(Boolean));
+  });
+
+  // ---------- GENERATE TAB ----------
+  const genSearch = document.getElementById('genSearch');
+  const genList = document.getElementById('genList');
+  const qrCard = document.getElementById('qrCard');
+  const qName = document.getElementById('qName');
+  const qCode = document.getElementById('qCode');
+  const qMeta = document.getElementById('qMeta');
+  const qrHolder = document.getElementById('qrcanvas-holder');
+  let currentQrProduct = null;
+
+  function renderGenList(){
+    const items = filteredProducts(genSearch.value).slice(0, 40);
+    genList.innerHTML = items.map(p=>`
+      <div class="pitem" data-code="${p.code}">
+        <div class="info">
+          <div class="name">${escapeHtml(p.name)}</div>
+          <div class="meta"><span class="code">${p.code}</span> · ${p.unit||''}</div>
+        </div>
+        <span class="badge">${p.brand||'-'}</span>
+      </div>
+    `).join('') || `<div class="empty">ไม่พบสินค้า</div>`;
+    genList.querySelectorAll('.pitem').forEach(el=>{
+      el.addEventListener('click', ()=> openGenerateFor(el.dataset.code));
+    });
+  }
+  genSearch.addEventListener('input', renderGenList);
+  renderGenList();
+
+  function openGenerateFor(code){
+    const p = byCode[code];
+    if(!p) return;
+    currentQrProduct = p;
+    qrCard.style.display = '';
+    qName.textContent = p.name;
+    qCode.textContent = p.code;
+    qMeta.textContent = `${p.brand||'-'} · ${p.unit||''} · คงเหลือ ${p.qty} · ${fmtPrice(p.price)}`;
+    qrHolder.innerHTML = '';
+    new QRCode(qrHolder, { text: p.code, width: 200, height: 200, colorDark:'#000', colorLight:'#fff' });
+    qrCard.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+
+  document.getElementById('downloadQrBtn').addEventListener('click', ()=>{
+    if(!currentQrProduct) return;
+    const canvas = qrHolder.querySelector('canvas');
+    if(!canvas) return;
+    const link = document.createElement('a');
+    link.download = `QR_${currentQrProduct.code}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  document.getElementById('printOneBtn').addEventListener('click', ()=>{
+    if(currentQrProduct) printSelected([currentQrProduct]);
+  });
+
+  // ---------- PRINT ----------
+  function printSelected(products){
+    if(!products.length){ showToast('ยังไม่ได้เลือกสินค้า'); return; }
+    const sheet = document.getElementById('printSheet');
+    sheet.innerHTML = '';
+    products.forEach(p=>{
+      const cell = document.createElement('div');
+      cell.className = 'label';
+      const qrDiv = document.createElement('div');
+      cell.appendChild(qrDiv);
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'lname';
+      nameDiv.textContent = p.name;
+      const codeDiv = document.createElement('div');
+      codeDiv.className = 'lcode';
+      codeDiv.textContent = p.code;
+      cell.appendChild(nameDiv);
+      cell.appendChild(codeDiv);
+      sheet.appendChild(cell);
+      new QRCode(qrDiv, { text: p.code, width: 110, height: 110, colorDark:'#000', colorLight:'#fff' });
+    });
+    setTimeout(()=> window.print(), 200);
+  }
+
+  // ---------- SCAN TAB ----------
+  let html5QrCode = null;
+  let scanning = false;
+  const startScanBtn = document.getElementById('startScanBtn');
+  const stopScanBtn = document.getElementById('stopScanBtn');
+  const scanResultWrap = document.getElementById('scanResultWrap');
+
+  function startScanner(){
+    if(scanning) return;
+    html5QrCode = new Html5Qrcode('reader');
+    const config = { fps: 10, qrbox: { width: 240, height: 240 } };
+    html5QrCode.start(
+      { facingMode: 'environment' },
+      config,
+      onScanSuccess,
+      ()=>{}
+    ).then(()=>{
+      scanning = true;
+      startScanBtn.style.display = 'none';
+      stopScanBtn.style.display = '';
+    }).catch(err=>{
+      showToast('เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้อง');
+      console.error(err);
+    });
+  }
+
+  function stopScanner(){
+    if(html5QrCode && scanning){
+      html5QrCode.stop().then(()=>{
+        html5QrCode.clear();
+        scanning = false;
+        startScanBtn.style.display = '';
+        stopScanBtn.style.display = 'none';
+      }).catch(()=>{});
+    }
+  }
+
+  let lastScanTime = 0;
+  function onScanSuccess(decodedText){
+    const now = Date.now();
+    if(now - lastScanTime < 1500) return; // debounce duplicate reads
+    lastScanTime = now;
+    handleCode(decodedText.trim());
+    if(navigator.vibrate) navigator.vibrate(80);
+  }
+
+  startScanBtn.addEventListener('click', startScanner);
+  stopScanBtn.addEventListener('click', stopScanner);
+
+  document.getElementById('manualBtn').addEventListener('click', ()=>{
+    const val = document.getElementById('manualCode').value.trim();
+    if(val) handleCode(val);
+  });
+  document.getElementById('manualCode').addEventListener('keydown', e=>{
+    if(e.key === 'Enter'){
+      const val = e.target.value.trim();
+      if(val) handleCode(val);
+    }
+  });
+
+  function handleCode(code){
+    const p = byCode[code];
+    addHistory(code, !!p);
+    if(p){
+      scanResultWrap.innerHTML = `
+        <div class="scan-result">
+          <h3>✅ ${escapeHtml(p.name)}</h3>
+          <div class="r-code">${p.code}</div>
+          <div style="margin-top:8px; font-size:13px; color:#cfe;">
+            Brand: ${p.brand||'-'} · หน่วย: ${p.unit||'-'}<br>
+            คงเหลือ: ${p.qty} · ราคา: ${fmtPrice(p.price)}<br>
+            ช่องทาง: ${p.channel||'-'}
+          </div>
+        </div>`;
+    } else {
+      scanResultWrap.innerHTML = `
+        <div class="scan-result notfound">
+          <h3>❌ ไม่พบสินค้า</h3>
+          <div class="r-code">${escapeHtml(code)}</div>
+          <div style="margin-top:8px; font-size:13px; color:#fbb;">รหัสนี้ไม่มีอยู่ในฐานข้อมูลสินค้า</div>
+        </div>`;
+    }
+  }
+
+  // ---------- HISTORY (localStorage) ----------
+  const HIST_KEY = 'qr_scan_history_v1';
+  function getHistory(){
+    try{ return JSON.parse(localStorage.getItem(HIST_KEY)) || []; }catch(e){ return []; }
+  }
+  function addHistory(code, found){
+    const hist = getHistory();
+    const p = byCode[code];
+    hist.unshift({
+      code, found,
+      name: p ? p.name : null,
+      time: new Date().toISOString()
+    });
+    localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0,200)));
+  }
+  function renderHistory(){
+    const hist = getHistory();
+    const histList = document.getElementById('histList');
+    if(!hist.length){
+      histList.innerHTML = `<div class="empty">ยังไม่มีประวัติการสแกน</div>`;
+      return;
+    }
+    histList.innerHTML = hist.map(h=>{
+      const d = new Date(h.time);
+      const timeStr = d.toLocaleString('th-TH', {dateStyle:'short', timeStyle:'short'});
+      return `<div class="history-item">
+        <div>
+          <div>${h.found ? '✅ ' : '❌ '}${escapeHtml(h.name || h.code)}</div>
+          <div class="t">${h.code} · ${timeStr}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('clearHistBtn').addEventListener('click', ()=>{
+    if(confirm('ล้างประวัติการสแกนทั้งหมด?')){
+      localStorage.removeItem(HIST_KEY);
+      renderHistory();
+      showToast('ล้างประวัติแล้ว');
+    }
+  });
+
+  // ---------- INIT ----------
+  renderList();
+})();
+</script>
+</body>
+</html>
