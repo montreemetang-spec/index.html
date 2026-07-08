@@ -6,6 +6,7 @@
 <title>QR Stock POP/POS - อีเว้นท์ราชบุรี</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root{
     --bg:#0f1115;
@@ -44,12 +45,14 @@
   nav{
     display:flex; gap:6px; padding:10px 16px 0;
     background:#0f1115;
+    overflow-x:auto;
   }
   nav button{
-    flex:1; padding:10px 6px; border-radius:10px 10px 0 0;
+    flex:1 0 auto; padding:10px 10px; border-radius:10px 10px 0 0;
     border:1px solid var(--border); border-bottom:none;
     background:var(--panel); color:var(--sub);
-    font-size:13px; font-weight:600; cursor:pointer;
+    font-size:12.5px; font-weight:600; cursor:pointer;
+    white-space:nowrap;
   }
   nav button.active{
     background:var(--panel2); color:var(--accent);
@@ -156,6 +159,27 @@
 
   h2.section{font-size:13px; color:var(--sub); margin:4px 0 8px; text-transform:uppercase; letter-spacing:.5px;}
 
+  .status-pill{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11px; padding:3px 9px; border-radius:999px;
+    background:var(--panel); border:1px solid var(--border); color:var(--sub);
+    cursor:pointer;
+  }
+  .status-pill .sdot{width:7px;height:7px;border-radius:50%;background:var(--sub);}
+  .status-pill.online{color:var(--accent); border-color:#1c4433;}
+  .status-pill.online .sdot{background:var(--accent); box-shadow:0 0 6px var(--accent);}
+  .status-pill.offline{color:var(--warn); border-color:#4a3a10;}
+  .status-pill.offline .sdot{background:var(--warn);}
+
+  .qty-actions{display:flex; gap:8px; margin-top:12px; align-items:center;}
+  .stepper{display:flex; align-items:center; gap:8px; background:#0d1a15; border:1px solid #1c4433; border-radius:10px; padding:4px 8px;}
+  .stepper button{width:30px;height:30px;border-radius:8px;border:none;background:#1c4433;color:var(--accent);font-size:16px;font-weight:800;cursor:pointer;}
+  .stepper input{width:40px;text-align:center;background:transparent;border:none;color:var(--text);font-size:14px;}
+  .btn.withdraw{background:var(--danger); color:#2a0508; flex:1;}
+  .btn.returnbtn{background:var(--accent); color:#0b1410; flex:1;}
+  .live-flash{animation:flashbg 1.2s ease;}
+  @keyframes flashbg{ from{background:#1c4433;} to{background:transparent;} }
+
   @media print{
     body *{visibility:hidden;}
     #printSheet, #printSheet *{visibility:visible;}
@@ -177,14 +201,20 @@
 <body>
 
 <header>
-  <h1><span class="dot"></span>QR Stock POP/POS</h1>
-  <p>อีเว้นท์ราชบุรี · จัดการสินค้า/อุปกรณ์ด้วย QR Code</p>
+  <div class="row" style="justify-content:space-between; align-items:flex-start;">
+    <div>
+      <h1><span class="dot"></span>QR Stock POP/POS</h1>
+      <p>อีเว้นท์ราชบุรี · จัดการสินค้า/อุปกรณ์ด้วย QR Code</p>
+    </div>
+    <div class="status-pill offline" id="statusPill"><span class="sdot"></span><span id="statusText">ออฟไลน์</span></div>
+  </div>
 </header>
 
 <nav>
   <button class="tab-btn active" data-tab="list">📋 รายการ</button>
   <button class="tab-btn" data-tab="generate">🔳 สร้าง QR</button>
   <button class="tab-btn" data-tab="scan">📷 สแกน</button>
+  <button class="tab-btn" data-tab="manage">✏️ จัดการ</button>
   <button class="tab-btn" data-tab="history">🕘 ประวัติ</button>
 </nav>
 
@@ -233,6 +263,7 @@
   <section id="tab-scan" style="display:none;">
     <div class="card">
       <div id="reader" style="width:100%;"></div>
+      <div id="scanErrorBox" style="display:none; margin-top:10px; background:#2a1414; border:1px solid var(--danger); border-radius:10px; padding:10px 12px; font-size:13px; color:#ffd7d7;"></div>
       <div class="row" style="margin-top:10px;">
         <button class="btn block" id="startScanBtn">▶️ เปิดกล้องสแกน</button>
         <button class="btn secondary block" id="stopScanBtn" style="display:none;">⏹️ หยุดสแกน</button>
@@ -245,14 +276,66 @@
     <div id="scanResultWrap"></div>
   </section>
 
+  <!-- TAB: MANAGE (เพิ่มสินค้า / ตัดสินค้า) -->
+  <section id="tab-manage" style="display:none;">
+    <div class="card">
+      <h2 class="section" style="margin-bottom:8px;">➕ เพิ่มสินค้าใหม่</h2>
+      <input type="text" id="addCode" placeholder="รหัสสินค้า (เช่น 230004999) *" style="margin-bottom:8px;">
+      <input type="text" id="addName" placeholder="ชื่อสินค้า *" style="margin-bottom:8px;">
+      <div class="row" style="margin-bottom:8px;">
+        <input type="text" id="addUnit" placeholder="หน่วยนับ (เช่น ตัว, ชิ้น)">
+        <input type="text" id="addBrand" placeholder="Brand">
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <input type="text" id="addChannel" placeholder="ช่องทาง (เช่น CVM, EV)">
+        <input type="text" id="addPrice" placeholder="ราคา">
+      </div>
+      <input type="text" id="addQty" placeholder="จำนวนเริ่มต้น" value="0" inputmode="numeric" style="margin-bottom:10px;">
+      <button class="btn block" id="addProductBtn">💾 บันทึกสินค้าใหม่ + สร้าง QR</button>
+      <div id="addResultBox"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="section" style="margin-bottom:8px;">🗑️ ตัดสินค้า (ชำรุด / สูญหาย / ตัดจำหน่าย)</h2>
+      <input type="text" id="woSearch" placeholder="ค้นหาสินค้าที่จะตัด...">
+      <div class="plist" id="woList" style="max-height:220px; overflow-y:auto; margin-top:8px;"></div>
+      <div id="woSelectedBox" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+        <div style="font-size:13px; font-weight:600; margin-bottom:8px;" id="woSelectedName"></div>
+        <select id="woReason" style="margin-bottom:8px;">
+          <option value="ชำรุด">ชำรุด</option>
+          <option value="สูญหาย">สูญหาย</option>
+          <option value="ตัดจำหน่าย">ตัดจำหน่าย</option>
+          <option value="แตก">แตก</option>
+        </select>
+        <div class="stepper" style="margin-bottom:10px;">
+          <button type="button" id="woMinus">−</button>
+          <input type="text" id="woQty" value="1" inputmode="numeric">
+          <button type="button" id="woPlus">+</button>
+        </div>
+        <button class="btn danger block" id="confirmWriteOffBtn">✂️ ยืนยันตัดสินค้า</button>
+      </div>
+    </div>
+  </section>
+
   <!-- TAB: HISTORY -->
   <section id="tab-history" style="display:none;">
     <div class="card">
       <div class="row" style="justify-content:space-between; align-items:center;">
-        <h2 class="section" style="margin:0;">ประวัติการสแกน</h2>
-        <button class="btn danger" id="clearHistBtn" style="padding:6px 12px; font-size:12px;">ล้างประวัติ</button>
+        <h2 class="section" style="margin:0;">ประวัติการสแกน (สด)</h2>
+        <button class="btn danger" id="clearHistBtn" style="padding:6px 12px; font-size:12px;">ล้างประวัติเครื่องนี้</button>
       </div>
       <div id="histList"></div>
+    </div>
+    <div class="card">
+      <h2 class="section" style="margin-bottom:6px;">⚙️ ตั้งค่าเรียลไทม์ (Supabase)</h2>
+      <p style="font-size:12px; color:var(--sub); margin:0 0 8px;">
+        ใส่ Project URL และ anon key จาก Supabase เพื่อเปิดใช้ซิงค์ข้อมูลสดข้ามอุปกรณ์<br>
+        ไม่กรอก = แอปทำงานแบบออฟไลน์ เก็บข้อมูลเฉพาะเครื่องนี้เหมือนเดิม
+      </p>
+      <input type="text" id="cfgUrl" placeholder="Supabase Project URL (https://xxxx.supabase.co)" style="margin-bottom:8px;">
+      <input type="text" id="cfgKey" placeholder="Supabase anon public key">
+      <input type="text" id="cfgDevice" placeholder="ชื่อของคุณ/อุปกรณ์ (เช่น พี่แนน - มือถือ)" style="margin-top:8px;">
+      <button class="btn block" id="saveCfgBtn" style="margin-top:10px;">บันทึก & เชื่อมต่อ</button>
     </div>
   </section>
 
@@ -273,6 +356,104 @@
   let currentFilter = '';
   let currentBrand = 'all';
 
+  // ---------- REALTIME (Supabase) ----------
+  const CFG_KEY = 'qr_supabase_cfg_v1';
+  let supa = null;
+  let realtimeOn = false;
+
+  function getCfg(){
+    try{ return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; }catch(e){ return {}; }
+  }
+  function saveCfg(cfg){ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+  function deviceName(){ return getCfg().device || 'ไม่ระบุชื่อ'; }
+
+  function setStatus(online){
+    const pill = document.getElementById('statusPill');
+    const text = document.getElementById('statusText');
+    realtimeOn = online;
+    pill.classList.toggle('online', online);
+    pill.classList.toggle('offline', !online);
+    text.textContent = online ? 'เรียลไทม์ออนไลน์' : 'ออฟไลน์ (เครื่องเดียว)';
+  }
+
+  async function initSupabase(){
+    const cfg = getCfg();
+    if(!cfg.url || !cfg.key){ setStatus(false); return; }
+    try{
+      supa = window.supabase.createClient(cfg.url, cfg.key);
+      // ทดสอบเชื่อมต่อด้วยการดึงสินค้า
+      const { data, error } = await supa.from('products').select('*');
+      if(error) throw error;
+      applyRemoteProducts(data);
+      subscribeRealtime();
+      setStatus(true);
+      showToast('เชื่อมต่อเรียลไทม์สำเร็จ');
+    }catch(err){
+      console.error('Supabase init error', err);
+      setStatus(false);
+      showToast('เชื่อมต่อเรียลไทม์ไม่สำเร็จ ใช้โหมดออฟไลน์แทน');
+    }
+  }
+
+  function applyRemoteProducts(rows){
+    rows.forEach(r=>{
+      const p = byCode[r.code];
+      if(p){
+        p.qty = r.qty;
+        p.name = r.name || p.name;
+        p.unit = r.unit || p.unit;
+        p.brand = r.brand || p.brand;
+        p.channel = r.channel || p.channel;
+        p.price = r.price || p.price;
+      } else {
+        const np = { code:r.code, name:r.name, unit:r.unit, brand:r.brand, channel:r.channel, price:r.price, qty:r.qty };
+        PRODUCTS.push(np);
+        byCode[r.code] = np;
+      }
+    });
+    renderList(); renderGenList(); renderWoList();
+  }
+
+  function subscribeRealtime(){
+    if(!supa) return;
+    supa.channel('stock-live')
+      .on('postgres_changes', { event:'UPDATE', schema:'public', table:'products' }, payload=>{
+        const r = payload.new;
+        const p = byCode[r.code];
+        if(p){ p.qty = r.qty; }
+        renderList(); renderGenList(); renderWoList();
+        if(currentQrProduct && currentQrProduct.code === r.code) currentQrProduct.qty = r.qty;
+        flashListItem(r.code);
+      })
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'scan_logs' }, payload=>{
+        const log = payload.new;
+        prependRemoteHistory(log);
+        if(log.device_name && log.device_name !== deviceName()){
+          const act = log.action === 'เบิก' ? 'เบิก' : (log.action === 'คืน' ? 'คืน' : 'สแกน');
+          showToast(`🔔 ${log.device_name} ${act} "${log.product_name||log.code}"`);
+        }
+      })
+      .subscribe();
+  }
+
+  function flashListItem(code){
+    const el = document.querySelector(`.pitem[data-code="${CSS.escape(code)}"]`);
+    if(el){ el.classList.add('live-flash'); setTimeout(()=>el.classList.remove('live-flash'), 1200); }
+  }
+
+  let remoteHistoryCache = [];
+  function prependRemoteHistory(log){
+    remoteHistoryCache.unshift(log);
+    remoteHistoryCache = remoteHistoryCache.slice(0,200);
+    renderHistory();
+  }
+
+  async function loadRemoteHistory(){
+    if(!supa) return;
+    const { data, error } = await supa.from('scan_logs').select('*').order('created_at', {ascending:false}).limit(100);
+    if(!error && data){ remoteHistoryCache = data; renderHistory(); }
+  }
+
   const toast = document.getElementById('toast');
   function showToast(msg){
     toast.textContent = msg;
@@ -287,6 +468,7 @@
     list: document.getElementById('tab-list'),
     generate: document.getElementById('tab-generate'),
     scan: document.getElementById('tab-scan'),
+    manage: document.getElementById('tab-manage'),
     history: document.getElementById('tab-history'),
   };
   tabBtns.forEach(btn=>{
@@ -294,7 +476,11 @@
       tabBtns.forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       Object.entries(sections).forEach(([k,el])=> el.style.display = (k===btn.dataset.tab? '' : 'none'));
-      if(btn.dataset.tab === 'history') renderHistory();
+      if(btn.dataset.tab === 'history'){
+        renderHistory();
+        if(supa && remoteHistoryCache.length === 0) loadRemoteHistory();
+      }
+      if(btn.dataset.tab === 'manage') renderWoList();
       if(btn.dataset.tab !== 'scan') stopScanner();
     });
   });
@@ -477,37 +663,101 @@
   // ---------- SCAN TAB ----------
   let html5QrCode = null;
   let scanning = false;
+  let starting = false;
   const startScanBtn = document.getElementById('startScanBtn');
   const stopScanBtn = document.getElementById('stopScanBtn');
   const scanResultWrap = document.getElementById('scanResultWrap');
+  const scanErrorBox = document.getElementById('scanErrorBox');
 
-  function startScanner(){
-    if(scanning) return;
-    html5QrCode = new Html5Qrcode('reader');
+  function showScanError(title, detail){
+    scanErrorBox.style.display = '';
+    scanErrorBox.innerHTML = `<b>${escapeHtml(title)}</b><br><span style="font-size:12px;color:#fbb;">${escapeHtml(detail||'')}</span>`;
+  }
+  function clearScanError(){
+    scanErrorBox.style.display = 'none';
+    scanErrorBox.innerHTML = '';
+  }
+
+  function friendlyCamError(err){
+    const name = (err && (err.name || err.message)) || String(err);
+    if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+      return 'ต้องเปิดผ่านลิงก์ HTTPS เท่านั้นถึงจะขอกล้องได้ (ตอนนี้เปิดแบบ file:// หรือ http:// ธรรมดา) — ให้ deploy ขึ้น Vercel/Railway ก่อนแล้วเปิดผ่านลิงก์นั้น';
+    }
+    if(/NotAllowedError|Permission/i.test(name)){
+      return 'เบราว์เซอร์บล็อกสิทธิ์กล้อง กด "อนุญาต" ตอนถูกถาม หรือเข้า ตั้งค่าเบราว์เซอร์ > สิทธิ์เว็บไซต์นี้ > กล้อง แล้วลองใหม่';
+    }
+    if(/NotFoundError|no camera|Requested device not found/i.test(name)){
+      return 'หาไม่เจอกล้องในอุปกรณ์นี้ ลองปิด/เปิดแอปอื่นที่อาจใช้กล้องอยู่ แล้วลองใหม่';
+    }
+    if(/NotReadableError|TrackStartError/i.test(name)){
+      return 'กล้องถูกแอปอื่นใช้งานอยู่ ปิดแอปกล้อง/วิดีโอคอลอื่นๆ แล้วลองใหม่';
+    }
+    if(/OverconstrainedError/i.test(name)){
+      return 'ไม่พบกล้องหลัง (rear camera) กำลังลองสลับไปใช้กล้องตัวแรกที่มีแทน...';
+    }
+    if(/Html5Qrcode.*not defined|is not a function/i.test(name)){
+      return 'โหลดไลบรารีสแกน QR ไม่สำเร็จ เช็คว่าอินเทอร์เน็ตเชื่อมต่ออยู่ตอนเปิดหน้านี้ แล้วรีเฟรชหน้าใหม่';
+    }
+    return `${name} — ลองรีเฟรชหน้าเว็บแล้วลองใหม่อีกครั้ง`;
+  }
+
+  async function startScanner(){
+    if(scanning || starting) return;
+    clearScanError();
+
+    if(typeof Html5Qrcode === 'undefined'){
+      showScanError('เปิดกล้องไม่ได้', friendlyCamError({name:'Html5Qrcode is not defined'}));
+      return;
+    }
+    if(location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1'){
+      showScanError('เปิดกล้องไม่ได้', friendlyCamError({}));
+      return;
+    }
+
+    starting = true;
+    if(!html5QrCode) html5QrCode = new Html5Qrcode('reader');
     const config = { fps: 10, qrbox: { width: 240, height: 240 } };
-    html5QrCode.start(
-      { facingMode: 'environment' },
-      config,
-      onScanSuccess,
-      ()=>{}
-    ).then(()=>{
-      scanning = true;
+
+    try{
+      await html5QrCode.start({ facingMode: 'environment' }, config, onScanSuccess, ()=>{});
+      scanning = true; starting = false;
       startScanBtn.style.display = 'none';
       stopScanBtn.style.display = '';
-    }).catch(err=>{
-      showToast('เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้กล้อง');
-      console.error(err);
-    });
+      return;
+    }catch(err1){
+      console.error('start with facingMode failed', err1);
+      // fallback: ลองสลับไปใช้กล้องตัวแรกที่หาเจอ
+      try{
+        showScanError('กำลังลองกล้องอื่น...', friendlyCamError(err1));
+        const cams = await Html5Qrcode.getCameras();
+        if(!cams || !cams.length) throw err1;
+        await html5QrCode.start({ deviceId: { exact: cams[0].id } }, config, onScanSuccess, ()=>{});
+        scanning = true; starting = false;
+        startScanBtn.style.display = 'none';
+        stopScanBtn.style.display = '';
+        clearScanError();
+        return;
+      }catch(err2){
+        starting = false;
+        scanning = false;
+        console.error('fallback camera failed', err2);
+        showScanError('เปิดกล้องไม่ได้', friendlyCamError(err2 && err2.name ? err2 : err1));
+      }
+    }
   }
 
   function stopScanner(){
     if(html5QrCode && scanning){
       html5QrCode.stop().then(()=>{
-        html5QrCode.clear();
+        try{ html5QrCode.clear(); }catch(e){}
         scanning = false;
         startScanBtn.style.display = '';
         stopScanBtn.style.display = 'none';
-      }).catch(()=>{});
+      }).catch(()=>{
+        scanning = false;
+        startScanBtn.style.display = '';
+        stopScanBtn.style.display = 'none';
+      });
     }
   }
 
@@ -536,7 +786,6 @@
 
   function handleCode(code){
     const p = byCode[code];
-    addHistory(code, !!p);
     if(p){
       scanResultWrap.innerHTML = `
         <div class="scan-result">
@@ -544,11 +793,42 @@
           <div class="r-code">${p.code}</div>
           <div style="margin-top:8px; font-size:13px; color:#cfe;">
             Brand: ${p.brand||'-'} · หน่วย: ${p.unit||'-'}<br>
-            คงเหลือ: ${p.qty} · ราคา: ${fmtPrice(p.price)}<br>
+            คงเหลือ: <span id="liveQty">${p.qty}</span> · ราคา: ${fmtPrice(p.price)}<br>
             ช่องทาง: ${p.channel||'-'}
           </div>
+          <div class="qty-actions">
+            <div class="stepper">
+              <button type="button" id="stepMinus">−</button>
+              <input type="text" id="stepQty" value="1" inputmode="numeric">
+              <button type="button" id="stepPlus">+</button>
+            </div>
+            <button class="btn withdraw" id="withdrawBtn">📤 เบิก</button>
+            <button class="btn returnbtn" id="returnBtn">📥 คืน</button>
+          </div>
+          <button class="btn secondary block" id="viewOnlyBtn" style="margin-top:8px;">👁️ แค่บันทึกว่าสแกนดู (ไม่เปลี่ยนจำนวน)</button>
         </div>`;
+
+      const stepQty = document.getElementById('stepQty');
+      document.getElementById('stepMinus').addEventListener('click', ()=>{
+        stepQty.value = Math.max(1, (parseInt(stepQty.value)||1) - 1);
+      });
+      document.getElementById('stepPlus').addEventListener('click', ()=>{
+        stepQty.value = (parseInt(stepQty.value)||1) + 1;
+      });
+      document.getElementById('withdrawBtn').addEventListener('click', ()=>{
+        const n = Math.max(1, parseInt(stepQty.value)||1);
+        submitStockAction(p, 'เบิก', -n);
+      });
+      document.getElementById('returnBtn').addEventListener('click', ()=>{
+        const n = Math.max(1, parseInt(stepQty.value)||1);
+        submitStockAction(p, 'คืน', n);
+      });
+      document.getElementById('viewOnlyBtn').addEventListener('click', ()=>{
+        submitStockAction(p, 'สแกนดูข้อมูล', 0);
+        showToast('บันทึกการสแกนแล้ว');
+      });
     } else {
+      addHistory(code, false);
       scanResultWrap.innerHTML = `
         <div class="scan-result notfound">
           <h3>❌ ไม่พบสินค้า</h3>
@@ -558,49 +838,235 @@
     }
   }
 
+  async function submitStockAction(p, action, delta){
+    const newQty = Math.max(0, (Number(p.qty)||0) + delta);
+    p.qty = newQty;
+    const liveQtyEl = document.getElementById('liveQty');
+    if(liveQtyEl) liveQtyEl.textContent = newQty;
+    renderList(); renderGenList(); renderWoList();
+    addHistory(p.code, true, action, delta, newQty);
+
+    if(supa){
+      try{
+        const { error: uErr } = await supa.from('products').update({ qty: newQty }).eq('code', p.code);
+        if(uErr) throw uErr;
+        const { error: iErr } = await supa.from('scan_logs').insert({
+          code: p.code, product_name: p.name, action, qty_change: delta,
+          qty_after: newQty, device_name: deviceName(), found: true
+        });
+        if(iErr) throw iErr;
+        if(action !== 'สแกนดูข้อมูล') showToast(`${action}สำเร็จ · ซิงค์ทุกอุปกรณ์แล้ว`);
+      }catch(err){
+        console.error('sync error', err);
+        showToast('บันทึกในเครื่องแล้ว แต่ซิงค์ออนไลน์ไม่สำเร็จ');
+      }
+    } else if(action !== 'สแกนดูข้อมูล'){
+      showToast(`${action}สำเร็จ (โหมดออฟไลน์ - เฉพาะเครื่องนี้)`);
+    }
+  }
+
+  // ---------- MANAGE TAB: เพิ่มสินค้าใหม่ ----------
+  const addCode = document.getElementById('addCode');
+  const addName = document.getElementById('addName');
+  const addUnit = document.getElementById('addUnit');
+  const addBrand = document.getElementById('addBrand');
+  const addChannel = document.getElementById('addChannel');
+  const addPrice = document.getElementById('addPrice');
+  const addQty = document.getElementById('addQty');
+  const addResultBox = document.getElementById('addResultBox');
+
+  document.getElementById('addProductBtn').addEventListener('click', async ()=>{
+    const code = addCode.value.trim();
+    const name = addName.value.trim();
+    if(!code || !name){
+      showToast('กรอกรหัสกับชื่อสินค้าก่อนนะ');
+      return;
+    }
+    const qty = Math.max(0, parseInt(addQty.value) || 0);
+    const isUpdate = !!byCode[code];
+    if(isUpdate){
+      if(!confirm(`รหัส ${code} มีอยู่แล้ว ("${byCode[code].name}") ต้องการอัปเดตข้อมูลทับของเดิมหรือไม่?`)) return;
+    }
+
+    const p = byCode[code] || { code };
+    p.name = name;
+    p.unit = addUnit.value.trim();
+    p.brand = addBrand.value.trim();
+    p.channel = addChannel.value.trim();
+    p.price = addPrice.value.trim();
+    p.qty = qty;
+    if(!byCode[code]){ byCode[code] = p; PRODUCTS.push(p); }
+
+    renderList(); renderGenList(); renderBrandChips(); renderWoList();
+
+    if(supa){
+      try{
+        const { error: uErr } = await supa.from('products').upsert({
+          code: p.code, name: p.name, unit: p.unit, brand: p.brand,
+          channel: p.channel, price: p.price, qty: p.qty
+        }, { onConflict: 'code' });
+        if(uErr) throw uErr;
+        await supa.from('scan_logs').insert({
+          code: p.code, product_name: p.name, action: 'เพิ่มสินค้าใหม่',
+          qty_change: qty, qty_after: qty, device_name: deviceName(), found: true
+        });
+        showToast(isUpdate ? 'อัปเดตสินค้าสำเร็จ · ซิงค์แล้ว' : 'เพิ่มสินค้าใหม่สำเร็จ · ซิงค์แล้ว');
+      }catch(err){
+        console.error('add product sync error', err);
+        showToast('บันทึกในเครื่องแล้ว แต่ซิงค์ออนไลน์ไม่สำเร็จ');
+      }
+    } else {
+      addHistory(p.code, true, 'เพิ่มสินค้าใหม่', qty, qty);
+      showToast(isUpdate ? 'อัปเดตสินค้าแล้ว (ออฟไลน์)' : 'เพิ่มสินค้าใหม่แล้ว (ออฟไลน์)');
+    }
+
+    // โชว์ QR ให้ปริ้นทันที
+    addResultBox.innerHTML = `
+      <div class="qrbox" style="margin-top:12px;">
+        <div id="addQrHolder"></div>
+        <div class="qname">${escapeHtml(p.name)}</div>
+        <div class="qcode">${p.code}</div>
+      </div>
+      <button class="btn secondary block" id="addPrintBtn" style="margin-top:10px;">🖨️ พิมพ์ QR สินค้านี้</button>`;
+    const holder = document.getElementById('addQrHolder');
+    new QRCode(holder, { text: p.code, width: 180, height: 180, colorDark:'#000', colorLight:'#fff' });
+    document.getElementById('addPrintBtn').addEventListener('click', ()=> printSelected([p]));
+
+    addCode.value=''; addName.value=''; addUnit.value=''; addBrand.value='';
+    addChannel.value=''; addPrice.value=''; addQty.value='0';
+  });
+
+  // ---------- MANAGE TAB: ตัดสินค้า (write-off) ----------
+  const woSearch = document.getElementById('woSearch');
+  const woList = document.getElementById('woList');
+  const woSelectedBox = document.getElementById('woSelectedBox');
+  const woSelectedName = document.getElementById('woSelectedName');
+  const woReason = document.getElementById('woReason');
+  const woQty = document.getElementById('woQty');
+  let woSelected = null;
+
+  function renderWoList(){
+    const items = filteredProducts(woSearch.value).slice(0, 30);
+    woList.innerHTML = items.map(p=>`
+      <div class="pitem" data-code="${p.code}">
+        <div class="info">
+          <div class="name">${escapeHtml(p.name)}</div>
+          <div class="meta"><span class="code">${p.code}</span> · คงเหลือ ${p.qty}</div>
+        </div>
+        <span class="badge">${p.brand||'-'}</span>
+      </div>
+    `).join('') || `<div class="empty">ไม่พบสินค้า</div>`;
+    woList.querySelectorAll('.pitem').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        woSelected = byCode[el.dataset.code];
+        if(!woSelected) return;
+        woSelectedBox.style.display = '';
+        woSelectedName.textContent = `${woSelected.name} (คงเหลือ ${woSelected.qty})`;
+        woQty.value = 1;
+        woSelectedBox.scrollIntoView({behavior:'smooth', block:'nearest'});
+      });
+    });
+  }
+  woSearch.addEventListener('input', renderWoList);
+  renderWoList();
+
+  document.getElementById('woMinus').addEventListener('click', ()=>{
+    woQty.value = Math.max(1, (parseInt(woQty.value)||1) - 1);
+  });
+  document.getElementById('woPlus').addEventListener('click', ()=>{
+    woQty.value = (parseInt(woQty.value)||1) + 1;
+  });
+
+  document.getElementById('confirmWriteOffBtn').addEventListener('click', ()=>{
+    if(!woSelected) return;
+    const n = Math.max(1, parseInt(woQty.value)||1);
+    const reason = woReason.value;
+    if(!confirm(`ยืนยันตัดสินค้า "${woSelected.name}" จำนวน ${n} เหตุผล: ${reason}?`)) return;
+    submitStockAction(woSelected, reason, -n);
+    renderWoList();
+    woSelectedBox.style.display = 'none';
+    woSelected = null;
+  });
+
   // ---------- HISTORY (localStorage) ----------
   const HIST_KEY = 'qr_scan_history_v1';
   function getHistory(){
     try{ return JSON.parse(localStorage.getItem(HIST_KEY)) || []; }catch(e){ return []; }
   }
-  function addHistory(code, found){
+  function addHistory(code, found, action, delta, qtyAfter){
     const hist = getHistory();
     const p = byCode[code];
     hist.unshift({
       code, found,
       name: p ? p.name : null,
+      action: action || 'สแกน',
+      qty_change: delta || 0,
+      qty_after: qtyAfter,
       time: new Date().toISOString()
     });
     localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0,200)));
+    if(!supa || remoteHistoryCache.length === 0) renderHistory();
   }
   function renderHistory(){
-    const hist = getHistory();
     const histList = document.getElementById('histList');
+    const useRemote = supa && remoteHistoryCache.length > 0;
+    const hist = useRemote ? remoteHistoryCache : getHistory();
     if(!hist.length){
       histList.innerHTML = `<div class="empty">ยังไม่มีประวัติการสแกน</div>`;
       return;
     }
     histList.innerHTML = hist.map(h=>{
-      const d = new Date(h.time);
+      const timeSrc = h.time || h.created_at;
+      const d = new Date(timeSrc);
       const timeStr = d.toLocaleString('th-TH', {dateStyle:'short', timeStyle:'short'});
+      const label = h.found===false
+        ? 'ไม่พบ'
+        : `${h.action || 'สแกน'}${h.qty_change ? ' ('+(h.qty_change>0?'+':'')+h.qty_change+')' : ''}`;
+      const who = useRemote && h.device_name ? ` · ${escapeHtml(h.device_name)}` : '';
+      const foundOk = useRemote ? (h.found !== false) : h.found;
       return `<div class="history-item">
         <div>
-          <div>${h.found ? '✅ ' : '❌ '}${escapeHtml(h.name || h.code)}</div>
-          <div class="t">${h.code} · ${timeStr}</div>
+          <div>${foundOk ? '✅ ' : '❌ '}${escapeHtml(h.product_name || h.name || h.code)} <span class="badge" style="margin-left:4px;">${label}</span></div>
+          <div class="t">${h.code} · ${timeStr}${who}</div>
         </div>
       </div>`;
     }).join('');
   }
   document.getElementById('clearHistBtn').addEventListener('click', ()=>{
-    if(confirm('ล้างประวัติการสแกนทั้งหมด?')){
+    if(confirm('ล้างประวัติการสแกนของเครื่องนี้? (ไม่ลบข้อมูลบนเซิร์ฟเวอร์)')){
       localStorage.removeItem(HIST_KEY);
       renderHistory();
-      showToast('ล้างประวัติแล้ว');
+      showToast('ล้างประวัติเครื่องนี้แล้ว');
+    }
+  });
+
+  // ---------- CONFIG PANEL ----------
+  const cfgUrlEl = document.getElementById('cfgUrl');
+  const cfgKeyEl = document.getElementById('cfgKey');
+  const cfgDeviceEl = document.getElementById('cfgDevice');
+  (function prefillCfg(){
+    const cfg = getCfg();
+    if(cfg.url) cfgUrlEl.value = cfg.url;
+    if(cfg.key) cfgKeyEl.value = cfg.key;
+    if(cfg.device) cfgDeviceEl.value = cfg.device;
+  })();
+  document.getElementById('saveCfgBtn').addEventListener('click', ()=>{
+    const url = cfgUrlEl.value.trim();
+    const key = cfgKeyEl.value.trim();
+    const device = cfgDeviceEl.value.trim() || 'ไม่ระบุชื่อ';
+    saveCfg({ url, key, device });
+    if(url && key){
+      showToast('กำลังเชื่อมต่อ...');
+      initSupabase();
+    } else {
+      setStatus(false);
+      showToast('บันทึกแล้ว (โหมดออฟไลน์)');
     }
   });
 
   // ---------- INIT ----------
   renderList();
+  initSupabase();
 })();
 </script>
 </body>
