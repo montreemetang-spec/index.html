@@ -381,8 +381,8 @@
     if(!cfg.url || !cfg.key){ setStatus(false); return; }
     try{
       supa = window.supabase.createClient(cfg.url, cfg.key);
-      // ทดสอบเชื่อมต่อด้วยการดึงสินค้า
-      const { data, error } = await supa.from('products').select('*');
+      // ทดสอบเชื่อมต่อด้วยการดึงสินค้า (โครงสร้างจริง: barcode, sale_price, stock_qty)
+      const { data, error } = await supa.from('products').select('id, barcode, name, category_id, cost_price, sale_price, stock_qty, min_stock_qty');
       if(error) throw error;
       applyRemoteProducts(data);
       subscribeRealtime();
@@ -395,20 +395,23 @@
     }
   }
 
+  // id (SERIAL) ของ products จริงในฐานข้อมูล, key คือ barcode (= p.code ในแอป)
+  const idByCode = {};
+
   function applyRemoteProducts(rows){
     rows.forEach(r=>{
-      const p = byCode[r.code];
+      idByCode[r.barcode] = r.id;
+      const p = byCode[r.barcode];
       if(p){
-        p.qty = r.qty;
+        p.qty = r.stock_qty;
         p.name = r.name || p.name;
-        p.unit = r.unit || p.unit;
-        p.brand = r.brand || p.brand;
-        p.channel = r.channel || p.channel;
-        p.price = r.price || p.price;
+        p.price = (r.sale_price != null) ? r.sale_price : p.price;
+        p.cost_price = r.cost_price;
+        p.dbId = r.id;
       } else {
-        const np = { code:r.code, name:r.name, unit:r.unit, brand:r.brand, channel:r.channel, price:r.price, qty:r.qty };
+        const np = { code:r.barcode, name:r.name, unit:'', brand:'', channel:'', price:r.sale_price, qty:r.stock_qty, cost_price:r.cost_price, dbId:r.id };
         PRODUCTS.push(np);
-        byCode[r.code] = np;
+        byCode[r.barcode] = np;
       }
     });
     renderList(); renderGenList(); renderWoList();
@@ -419,19 +422,18 @@
     supa.channel('stock-live')
       .on('postgres_changes', { event:'UPDATE', schema:'public', table:'products' }, payload=>{
         const r = payload.new;
-        const p = byCode[r.code];
-        if(p){ p.qty = r.qty; }
+        const p = byCode[r.barcode];
+        if(p){ p.qty = r.stock_qty; }
         renderList(); renderGenList(); renderWoList();
-        if(currentQrProduct && currentQrProduct.code === r.code) currentQrProduct.qty = r.qty;
-        flashListItem(r.code);
+        if(currentQrProduct && currentQrProduct.code === r.barcode) currentQrProduct.qty = r.stock_qty;
+        flashListItem(r.barcode);
       })
       .on('postgres_changes', { event:'INSERT', schema:'public', table:'scan_logs' }, payload=>{
         const log = payload.new;
         prependRemoteHistory(log);
-        if(log.device_name && log.device_name !== deviceName()){
-          const act = log.action === 'เบิก' ? 'เบิก' : (log.action === 'คืน' ? 'คืน' : 'สแกน');
-          showToast(`🔔 ${log.device_name} ${act} "${log.product_name||log.code}"`);
-        }
+        // scan_logs จริงไม่มี device_name/product_name — เติมชื่อสินค้าจาก product_id ให้เอง
+        const p = Object.values(byCode).find(pp => pp.dbId === log.product_id);
+        if(p) showToast(`🔔 มีการอัปเดต "${p.name}" (${log.type || 'สแกน'})`);
       })
       .subscribe();
   }
@@ -848,11 +850,25 @@
 
     if(supa){
       try{
-        const { error: uErr } = await supa.from('products').update({ qty: newQty }).eq('code', p.code);
+        const { error: uErr } = await supa.from('products')
+          .update({ stock_qty: newQty })
+          .eq('barcode', p.code);
         if(uErr) throw uErr;
+
+        let productId = idByCode[p.code] || p.dbId;
+        if(!productId){
+          const { data: pRow, error: pErr } = await supa.from('products').select('id').eq('barcode', p.code).single();
+          if(pErr) throw pErr;
+          productId = pRow.id;
+          idByCode[p.code] = productId;
+          p.dbId = productId;
+        }
+
         const { error: iErr } = await supa.from('scan_logs').insert({
-          code: p.code, product_name: p.name, action, qty_change: delta,
-          qty_after: newQty, device_name: deviceName(), found: true
+          product_id: productId,
+          type: action,
+          qty: delta,
+          note: `${deviceName()} · คงเหลือหลังทำรายการ ${newQty}`
         });
         if(iErr) throw iErr;
         if(action !== 'สแกนดูข้อมูล') showToast(`${action}สำเร็จ · ซิงค์ทุกอุปกรณ์แล้ว`);
@@ -901,14 +917,19 @@
 
     if(supa){
       try{
-        const { error: uErr } = await supa.from('products').upsert({
-          code: p.code, name: p.name, unit: p.unit, brand: p.brand,
-          channel: p.channel, price: p.price, qty: p.qty
-        }, { onConflict: 'code' });
+        const { data: upRow, error: uErr } = await supa.from('products').upsert({
+          barcode: p.code, name: p.name,
+          sale_price: parseFloat((p.price||'0').toString().replace(/,/g,'')) || 0,
+          stock_qty: p.qty
+        }, { onConflict: 'barcode' }).select('id').single();
         if(uErr) throw uErr;
+        idByCode[p.code] = upRow.id;
+        p.dbId = upRow.id;
         await supa.from('scan_logs').insert({
-          code: p.code, product_name: p.name, action: 'เพิ่มสินค้าใหม่',
-          qty_change: qty, qty_after: qty, device_name: deviceName(), found: true
+          product_id: upRow.id,
+          type: 'เพิ่มสินค้าใหม่',
+          qty: qty,
+          note: `${deviceName()} · เพิ่ม/อัปเดตสินค้า คงเหลือ ${qty}`
         });
         showToast(isUpdate ? 'อัปเดตสินค้าสำเร็จ · ซิงค์แล้ว' : 'เพิ่มสินค้าใหม่สำเร็จ · ซิงค์แล้ว');
       }catch(err){
@@ -1019,15 +1040,26 @@
       const timeSrc = h.time || h.created_at;
       const d = new Date(timeSrc);
       const timeStr = d.toLocaleString('th-TH', {dateStyle:'short', timeStyle:'short'});
+      const actionLabel = useRemote ? h.type : h.action;
+      const qtyChange = useRemote ? h.qty : h.qty_change;
       const label = h.found===false
         ? 'ไม่พบ'
-        : `${h.action || 'สแกน'}${h.qty_change ? ' ('+(h.qty_change>0?'+':'')+h.qty_change+')' : ''}`;
-      const who = useRemote && h.device_name ? ` · ${escapeHtml(h.device_name)}` : '';
-      const foundOk = useRemote ? (h.found !== false) : h.found;
+        : `${actionLabel || 'สแกน'}${qtyChange ? ' ('+(qtyChange>0?'+':'')+qtyChange+')' : ''}`;
+      let displayName, displayCode, who = '';
+      if(useRemote){
+        const prod = Object.values(byCode).find(pp => pp.dbId === h.product_id);
+        displayName = prod ? prod.name : `(สินค้า id ${h.product_id})`;
+        displayCode = prod ? prod.code : '';
+        if(h.note) who = ` · ${escapeHtml(h.note)}`;
+      } else {
+        displayName = h.name || h.code;
+        displayCode = h.code;
+      }
+      const foundOk = useRemote ? true : h.found;
       return `<div class="history-item">
         <div>
-          <div>${foundOk ? '✅ ' : '❌ '}${escapeHtml(h.product_name || h.name || h.code)} <span class="badge" style="margin-left:4px;">${label}</span></div>
-          <div class="t">${h.code} · ${timeStr}${who}</div>
+          <div>${foundOk ? '✅ ' : '❌ '}${escapeHtml(displayName)} <span class="badge" style="margin-left:4px;">${label}</span></div>
+          <div class="t">${displayCode} · ${timeStr}${who}</div>
         </div>
       </div>`;
     }).join('');
